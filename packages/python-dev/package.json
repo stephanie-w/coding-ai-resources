@@ -1,0 +1,10 @@
+{
+  "name": "python-dev-pack",
+  "version": "0.1.0",
+  "description": "Dedicated Python development workflows, uv standards, and QA justfile templates",
+  "pi": {
+    "instructions": [
+      "../../instructions/python-dev.instructions.md"
+    ]
+  }
+}

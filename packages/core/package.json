@@ -1,0 +1,21 @@
+{
+  "name": "core-pack",
+  "version": "0.1.0",
+  "description": "Core skills and tools bundle for Pi Agent",
+  "pi": {
+    "skills": [
+      "../../skills/analyze-sessions",
+      "../../skills/deep-engineering",
+      "../../skills/discover-standards",
+      "../../skills/how",
+      "../../skills/html2md",
+      "../../skills/idea-refine",
+      "../../skills/make-skill",
+      "../../skills/session-handoff",
+      "../../skills/teach",
+      "../../skills/technical-writing",
+      "../../skills/unslop",
+      "../../skills/why"
+    ]
+  }
+}

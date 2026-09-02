@@ -1,0 +1,62 @@
+# ==============================================================================
+# Agent Core Navigation & Inspection Tools (Token-Capped)
+# ==============================================================================
+
+# Search codebase with line cap
+search pattern:
+    #!/usr/bin/env bash
+    if command -v rg >/dev/null 2>&1; then
+        rg --no-heading --line-number --color=never "{{pattern}}" \
+           --glob '!{.git,__pycache__,.venv,uv.lock}' | head -n 30
+    else
+        grep -rnI --exclude-dir={.git,__pycache__,.venv} "{{pattern}}" . | head -n 30
+    fi
+
+# Find files by name pattern
+find-files pattern:
+    #!/usr/bin/env bash
+    if command -v fd >/dev/null 2>&1; then
+        fd --hidden --exclude .git --exclude __pycache__ --exclude .venv "{{pattern}}" | head -n 30
+    else
+        find . -not -path '*/.*' -not -path './__pycache__*' -not -path './.venv*' -name "*{{pattern}}*" | head -n 30
+    fi
+
+# View a numbered slice of a file with safety cap
+view file start="1" end="80":
+    #!/usr/bin/env bash
+    TOTAL=$(wc -l < "{{file}}")
+    START={{start}}
+    END={{end}}
+    MAX_LINES=100
+    if [ $((END - START)) -gt $MAX_LINES ]; then
+        END=$((START + MAX_LINES))
+        echo "⚠️ Capped output to $MAX_LINES lines for token efficiency."
+    fi
+    echo "=== {{file}} (Lines $START to $END of $TOTAL) ==="
+    nl -ba -w4 -s': ' "{{file}}" | sed -n "${START},${END}p"
+
+# Compact repository layout tree
+tree:
+    #!/usr/bin/env bash
+    if command -v tree >/dev/null 2>&1; then
+        tree -L 2 -I '__pycache__|.git|.venv|uv.lock'
+    else
+        find . -maxdepth 2 -not -path '*/.*' -not -path './__pycache__*' -not -path './.venv*' | sort
+    fi
+
+# Compact git overview
+git-summary:
+    #!/usr/bin/env bash
+    BRANCH=$(git branch --show-current 2>/dev/null || echo "detached")
+    STATUS=$(git status --short 2>/dev/null)
+    DIRTY_COUNT=$(echo -n "$STATUS" | grep -c '^' || true)
+    LAST_COMMIT=$(git log -1 --oneline 2>/dev/null || echo "none")
+    echo "Branch: $BRANCH | Modified: $DIRTY_COUNT files | Last Commit: $LAST_COMMIT"
+    if [ "$DIRTY_COUNT" -gt 0 ]; then
+        echo "--- Changed files ---"
+        echo "$STATUS" | head -n 15
+    fi
+
+# Noise-filtered diff
+git-diff:
+    @git diff --ignore-all-space -- . ':!uv.lock' ':!*.svg' | head -n 80
