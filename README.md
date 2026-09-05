@@ -34,6 +34,7 @@ coding-ai-resources/
 │   ├── unslop/                 # Removes AI writing tells and enforces compact human prose
 │   └── why/                    # Forensic investigation into code intent via Git history & ADRs
 ├── templates/                  # Reusable workspace templates and tooling
+│   ├── AGENTS.md               # Standard agent operating protocol and command hygiene
 │   └── justfiles/
 │       ├── core-agent.just     # Language-agnostic inspection tools (search, view, git-diff)
 │       ├── python-uv.just      # Python/uv QA gates (test, lint, fix, typecheck, check)
@@ -52,17 +53,18 @@ coding-ai-resources/
 
 ## Quick Start: Initializing a Python Project
 
-To initialize a complete Python development environment with agent skills and token-optimized inspection tools in a target project:
+To initialize a complete Python development environment with agent skills, instructions, and token-optimized inspection tools in a target project:
 
 ```bash
 # Target path is mandatory
 just setup-python /path/to/your/project
 ```
 
-This single command:
+This single non-destructive command:
 1. Installs the `core` pack (`.pi/settings.json`).
 2. Installs the `python-dev` pack (enforcing `uv` and `pytest` standards).
-3. Copies `justfile.agent` into the target workspace for token-efficient agent inspection and single-turn QA gates (`just -f justfile.agent check`).
+3. Copies `justfile.agent` into the target workspace (preserved if already present).
+4. Copies `AGENTS.md` into the target workspace (preserved if already present).
 
 ---
 
@@ -89,9 +91,9 @@ This launches a dedicated Pi session that:
 | `just` | List all available recipes. |
 | `just validate` | Validate all `package.json` manifests using `jq`. |
 | `just --dry-run <recipe> <args>` | Preview commands safely without executing them. |
-| `just setup-python <target>` | Install full Python stack (`core` + `python-dev` + `justfile.agent`) into `<target>`. |
+| `just setup-python <target>` | Install full Python stack (`core` + `python-dev` + `justfile.agent` + `AGENTS.md`) into `<target>`. |
 | `just reflect [timespan]` | Run cross-project session reflection in a dedicated Pi session (default: `30d`). |
 | `just install-pack <pack> <target>` | Install a specific package into a target directory. |
 | `just remove-pack <pack> <target>` | Remove an installed package from a target directory. |
-| `just init-project-tools <target>` | Copy `justfile.agent` into a target workspace. |
+| `just init-project-tools <target>` | Copy `justfile.agent` and `AGENTS.md` into a target workspace (non-destructive). |
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |

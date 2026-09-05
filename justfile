@@ -40,7 +40,7 @@ remove-pack pack target:
     fi
     cd "$TARGET_DIR" && pi remove "{{pack}}"
 
-# Install full Python stack (core + python-dev + agent tooling) into a target project
+# Install full Python stack (core + python-dev + agent tooling + AGENTS.md) into a target project
 setup-python target:
     #!/usr/bin/env bash
     TARGET_DIR=$(cd "{{invocation_directory()}}" && realpath "{{target}}")
@@ -57,7 +57,7 @@ setup-python target:
     just -f "{{justfile()}}" init-project-tools "$TARGET_DIR"
     echo "✓ Python agent stack initialized in $TARGET_DIR."
 
-# Copy agent justfile template into a target project workspace
+# Copy agent justfile and AGENTS.md templates into a target project workspace (preserves existing files)
 init-project-tools target:
     #!/usr/bin/env bash
     TARGET_DIR=$(cd "{{invocation_directory()}}" && realpath "{{target}}")
@@ -69,8 +69,22 @@ init-project-tools target:
         echo "Error: Cannot copy tools into the resource catalog itself." >&2
         exit 1
     fi
-    cp "{{justfile_directory()}}/templates/justfiles/justfile.agent" "$TARGET_DIR/justfile.agent"
-    echo "✓ Copied justfile.agent to $TARGET_DIR."
+
+    # 1. justfile.agent
+    if [ ! -f "$TARGET_DIR/justfile.agent" ]; then
+        cp "{{justfile_directory()}}/templates/justfiles/justfile.agent" "$TARGET_DIR/justfile.agent"
+        echo "✓ Copied justfile.agent to $TARGET_DIR."
+    else
+        echo "ℹ justfile.agent already exists in $TARGET_DIR (preserved)."
+    fi
+
+    # 2. AGENTS.md
+    if [ ! -f "$TARGET_DIR/AGENTS.md" ]; then
+        cp "{{justfile_directory()}}/templates/AGENTS.md" "$TARGET_DIR/AGENTS.md"
+        echo "✓ Copied AGENTS.md to $TARGET_DIR."
+    else
+        echo "ℹ AGENTS.md already exists in $TARGET_DIR (preserved)."
+    fi
 
 # Run cross-project reflection in a dedicated Pi session to evolve this repository
 reflect timespan="30d":
