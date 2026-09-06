@@ -12,8 +12,9 @@ The repository follows a two-tier organization model:
 
 ```text
 coding-ai-resources/
-├── agents/                     # Persistent persona and system prompt definitions
-│   └── base.agent.md           # Core communication, operational rules, and baseline engineering
+├── agents/                     # Selectable persona and system prompt definitions
+│   ├── base.agent.md           # Default persona: communication, operational rules, baseline engineering
+│   └── teach.agent.md          # Teaching persona for dedicated learning sessions
 ├── instructions/               # Always-on rule files and standards
 │   ├── python-dev.instructions.md           # uv environment management, pytest, and QA gates
 │   ├── task-tracking-basic.instructions.md  # Simple checklist-style TODO.md rules
@@ -29,7 +30,6 @@ coding-ai-resources/
 │   ├── idea-refine/            # Structured divergent/convergent ideation framework
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
 │   ├── session-handoff/        # Point-in-time state checkpointing and session resume
-│   ├── teach/                  # Interactive tutorial and concept onboarding
 │   ├── technical-writing/      # Disciplined technical documentation, RFCs, and PR specs
 │   ├── unslop/                 # Removes AI writing tells and enforces compact human prose
 │   └── why/                    # Forensic investigation into code intent via Git history & ADRs
@@ -51,9 +51,20 @@ coding-ai-resources/
 
 ---
 
-## Quick Start: Initializing a Python Project
+## 1. Global Setup (Run Once)
 
-To initialize a complete Python development environment with agent skills, instructions, and token-optimized inspection tools in a target project:
+Install your core skills globally so they are available in every terminal and project session across your machine:
+
+```bash
+# Install core-pack globally into ~/.pi/agent/settings.json
+just install-global
+```
+
+---
+
+## 2. Project Setup (Per Repository)
+
+To initialize a Python project workspace with agent tooling and instructions:
 
 ```bash
 # Target path is mandatory
@@ -61,10 +72,8 @@ just setup-python /path/to/your/project
 ```
 
 This single non-destructive command:
-1. Installs the `core` pack (`.pi/settings.json`).
-2. Installs the `python-dev` pack (enforcing `uv` and `pytest` standards).
-3. Copies `justfile.agent` into the target workspace (preserved if already present).
-4. Copies `AGENTS.md` into the target workspace (preserved if already present).
+1. Copies `justfile.agent` into the target workspace (preserved if already present).
+2. Copies `AGENTS.md` into the target workspace (preserved if already present).
 
 ---
 
@@ -91,9 +100,11 @@ This launches a dedicated Pi session that:
 | `just` | List all available recipes. |
 | `just validate` | Validate all `package.json` manifests using `jq`. |
 | `just --dry-run <recipe> <args>` | Preview commands safely without executing them. |
-| `just setup-python <target>` | Install full Python stack (`core` + `python-dev` + `justfile.agent` + `AGENTS.md`) into `<target>`. |
+| `just install-global [pack]` | Install a package globally into `~/.pi/agent/settings.json` (default: `core`). |
+| `just remove-global [pack]` | Remove a globally installed package. |
+| `just setup-python <target>` | Initialize Python workspace with `justfile.agent` and `AGENTS.md` in `<target>`. |
+| `just init-project-tools <target>` | Copy `justfile.agent` and `AGENTS.md` into `<target>` (non-destructive). |
 | `just reflect [timespan]` | Run cross-project session reflection in a dedicated Pi session (default: `30d`). |
-| `just install-pack <pack> <target>` | Install a specific package into a target directory. |
-| `just remove-pack <pack> <target>` | Remove an installed package from a target directory. |
-| `just init-project-tools <target>` | Copy `justfile.agent` and `AGENTS.md` into a target workspace (non-destructive). |
+| `just install-pack <pack> <target>` | Install a package locally into a specific project. |
+| `just remove-pack <pack> <target>` | Remove a package locally from a project. |
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |

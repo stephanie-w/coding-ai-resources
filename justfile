@@ -16,7 +16,15 @@ validate:
     done
     @echo "All package manifests are valid."
 
-# Install a single package into a target project directory
+# Install a package globally for all sessions on this machine (default: core)
+install-global pack="core":
+    pi install "{{justfile_directory()}}/packages/{{pack}}"
+
+# Remove a globally installed package
+remove-global pack="core":
+    pi remove "{{pack}}-pack"
+
+# Install a package locally into a specific target project
 install-pack pack target:
     #!/usr/bin/env bash
     TARGET_DIR=$(cd "{{invocation_directory()}}" && realpath "{{target}}")
@@ -30,7 +38,7 @@ install-pack pack target:
     fi
     cd "$TARGET_DIR" && pi install -l "{{justfile_directory()}}/packages/{{pack}}"
 
-# Remove a package from a target project directory
+# Remove a locally installed package from a target project
 remove-pack pack target:
     #!/usr/bin/env bash
     TARGET_DIR=$(cd "{{invocation_directory()}}" && realpath "{{target}}")
@@ -38,24 +46,12 @@ remove-pack pack target:
         echo "Error: Target directory '$TARGET_DIR' does not exist." >&2
         exit 1
     fi
-    cd "$TARGET_DIR" && pi remove "{{pack}}"
+    cd "$TARGET_DIR" && pi remove "{{pack}}-pack"
 
-# Install full Python stack (core + python-dev + agent tooling + AGENTS.md) into a target project
+# Initialize Python project workspace with justfile.agent and AGENTS.md (non-destructive)
 setup-python target:
-    #!/usr/bin/env bash
-    TARGET_DIR=$(cd "{{invocation_directory()}}" && realpath "{{target}}")
-    if [ ! -d "$TARGET_DIR" ]; then
-        echo "Error: Target directory '$TARGET_DIR' does not exist." >&2
-        exit 1
-    fi
-    if [ "$TARGET_DIR" = "{{justfile_directory()}}" ]; then
-        echo "Error: Cannot initialize the resource catalog itself." >&2
-        exit 1
-    fi
-    just -f "{{justfile()}}" install-pack core "$TARGET_DIR"
-    just -f "{{justfile()}}" install-pack python-dev "$TARGET_DIR"
-    just -f "{{justfile()}}" init-project-tools "$TARGET_DIR"
-    echo "✓ Python agent stack initialized in $TARGET_DIR."
+    @just -f {{justfile()}} init-project-tools "{{target}}"
+    @echo "✓ Python project tooling & AGENTS.md initialized in $(cd "{{invocation_directory()}}" && realpath "{{target}}")."
 
 # Copy agent justfile and AGENTS.md templates into a target project workspace (preserves existing files)
 init-project-tools target:
@@ -101,3 +97,7 @@ test-pack pack="core" *args="":
     pi --skill "{{justfile_directory()}}/skills/analyze-sessions" \
        --skill "{{justfile_directory()}}/skills/html2md" \
        --skill "{{justfile_directory()}}/skills/idea-refine" {{args}}
+
+# Start a dedicated teaching session with the teach persona
+teach model="deepseek/deepseek-v4-flash":
+    pi --model "{{model}}" --append-system-prompt "{{justfile_directory()}}/agents/teach.agent.md"

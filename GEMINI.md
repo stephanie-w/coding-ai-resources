@@ -11,13 +11,14 @@ Key constraints:
 
 ## 2. Repository Purpose & Architecture
 This repository (`coding-ai-resources`) is a centralized catalog of agentic resources:
-- `agents/`: Persistent agent/persona definitions.
+- `agents/`: Selectable persona/system-prompt definitions (`base`, `teach`).
 - `instructions/`: Continuous standards (`python-dev`, task tracking).
-- `skills/`: Reusable capability packages (`analyze-sessions`, `deep-engineering`, `discover-standards`, `how`, `html2md`, `idea-refine`, `make-skill`, `session-handoff`, `teach`, `technical-writing`, `unslop`, `why`).
+- `skills/`: Reusable capability packages (`analyze-sessions`, `deep-engineering`, `discover-standards`, `how`, `html2md`, `idea-refine`, `make-skill`, `session-handoff`, `technical-writing`, `unslop`, `why`).
 - `templates/justfiles/`: Token-optimized agent CLI tooling (`justfile.agent`).
 - `packages/`: Composition manifests for Pi Agent (`core`, `python-dev`).
 
 ## 3. Standard Commands
 - `just validate`: Validate all package manifests with `jq`.
+- `just install-global`: Install core package globally into `~/.pi/agent/settings.json`.
+- `just setup-python <target>`: Initialize target project with `justfile.agent` and `AGENTS.md`.
 - `just --dry-run <recipe> <args>`: Preview commands safely before execution.
-- `just setup-python <target>`: Initialize full Python stack in a target project.
