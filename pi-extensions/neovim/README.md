@@ -1,151 +1,178 @@
 # 🧩 pi-extension-neovim
 
-> **Native Neovim RPC extension for the [Pi coding agent](https://pi.dev)**
-> Connects Pi directly to its parent Neovim editor session via `$NVIM` Unix socket.
+> **Native Neovim RPC integration for the [pi coding agent](https://pi.dev)**
+> Connects pi directly to its parent Neovim session via the `$NVIM` Unix socket.
+
+When pi runs inside a Neovim `:terminal`, this extension makes it **editor-aware**:
+it reads live editor state, keeps buffers in sync after edits, and lets Neovim
+trigger pi workflows with a keystroke.
 
 ---
 
-## 🌟 Why this extension?
+## ✨ Features
 
-When running Pi inside a Neovim terminal pane or split, Pi by default only interacts with files saved to disk.
-
-With this extension, Pi becomes fully **editor-aware**:
-* 👁️ **Live Context Awareness:** Automatically detects which file and line you have open in your active editor split.
-* 📝 **In-Memory Buffer Inspection:** Reads unsaved in-memory edits directly from Neovim before you write them to disk.
-* ⚡ **Remote Editor Commands:** Allows Pi to execute Ex commands (e.g. `:checktime` to reload buffers, `:edit`, or custom Lua
-functions).
-* 🪶 **Zero Heavy Dependencies:** Lightweight TypeScript implementation communicating directly via Neovim's native `--server` RPC
-interface.
+- **Dynamic context** — active file, cursor line/column, dirty state, visual
+  selection (or 50 surrounding lines), and **LSP diagnostics**, all read live
+  from Neovim.
+- **Zero-friction buffer sync** — when pi runs `write`/`edit` on a file open in
+  Neovim, a fire-and-forget **RPC notification** reloads the buffer from disk.
+  Unmodified buffers reload in place; the undo tree and window views are
+  preserved. Buffers with unsaved changes are skipped and the user is warned.
+- **Neovim-triggered presets** — `:Pi <action>` and `<Plug>(Pi*)` mappings send
+  `/nvim-review`, `/nvim-explain`, `/nvim-refactor`, or `/nvim-fix` to the pi
+  terminal, capturing the current visual selection first.
+- **Self-contained** — speaks Neovim's MessagePack-RPC protocol directly over
+  the socket. No Lua config is required, though helper bindings are installed
+  automatically.
+- **Graceful degradation** — if `$NVIM` is unset (pi run outside Neovim), the
+  extension registers nothing and pi behaves exactly like a normal CLI agent.
 
 ---
 
-## 🛠️ Provided Tools & Capabilities
+## 🔍 How it works
 
-| Tool | Parameters | Description |
-| :--- | :--- | :--- |
-| `nvim_get_context` | `include_buffers` *(bool, optional)* | Returns active file path, relative path, cursor line/column, filetype,
-modified status, and a list of all open buffers. |
-| `nvim_read_buffer` | `target` *(string, optional)* | Reads the live in-memory buffer content (even unsaved edits) for the active file
-or a specified buffer name/number. |
-| `nvim_command` | `command` *(string, required)* | Sends and executes an Ex command to the parent Neovim session (e.g. `:checktime`,
-`:w`). |
+1. Neovim exposes its RPC socket path in the `$NVIM` environment variable.
+2. The extension opens a long-lived MessagePack-RPC connection to that socket.
+3. Tools and commands query/act on Neovim through `nvim_exec_lua`.
+4. If the socket cannot be opened, it falls back to
+   `nvim --server "$NVIM" --remote-expr` transparently.
+5. When pi is run outside Neovim, the extension is completely inert.
 
 ---
 
 ## 📦 Installation
 
 ### 1. Prerequisites
-* **[Pi Coding Agent](https://pi.dev)** (`npm install -g @mariozechner/pi` or via curl)
-* **Neovim 0.9+** (tested on Neovim 0.11 / 0.12)
 
-### 2. Install the Extension
-Clone or link `neovim.ts` into your global Pi extensions directory:
+- **pi coding agent** (`npm install -g @earendil-works/pi-coding-agent`)
+- **Neovim 0.9+** (tested on 0.12)
+
+### 2. Install the extension
 
 ```bash
 mkdir -p ~/.pi/agent/extensions
 
-# Option A: Symlink directly from your cloned repo
+# Option A: symlink from a cloned repo
 ln -s "$(pwd)/neovim.ts" ~/.pi/agent/extensions/neovim.ts
 
-# Option B: Direct copy
+# Option B: copy
 cp neovim.ts ~/.pi/agent/extensions/neovim.ts
-──────
-## ⚙️ Recommended Neovim Setup (Lua)
+```
 
-While the extension includes native VimScript fallbacks, adding the following lightweight Lua helpers to your Neovim config (init.lua or
-lua/ai.lua) provides intelligent filtering (e.g. automatically ignoring Pi's own terminal buffer):
+Reload with `/reload` or restart pi. The extension is a single self-contained
+TypeScript file — no `npm install`, no build step, no Neovim config required.
 
--- Helper for Pi agent: Get active editor context
-_G.PiGetContext = function()
-  local cur_win = vim.api.nvim_get_current_win()
-  local cur_buf = vim.api.nvim_get_current_buf()
-  local buftype = vim.bo[cur_buf].buftype
+---
 
-  -- If current window is a terminal/chat split, find the active code buffer window
-  if buftype == "terminal" or buftype == "nofile" or buftype == "prompt" then
-    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-      local b = vim.api.nvim_win_get_buf(win)
-      local bt = vim.bo[b].buftype
-      if bt == "" and vim.api.nvim_buf_get_name(b) ~= "" then
-        cur_win = win
-        cur_buf = b
-        break
-      end
-    end
-  end
+## 🛠️ Tools
 
-  local file_path = vim.api.nvim_buf_get_name(cur_buf)
-  local rel_path = file_path ~= "" and vim.fn.fnamemodify(file_path, ":~:.") or ""
-  local file_name = file_path ~= "" and vim.fn.fnamemodify(file_path, ":t") or ""
-  local cursor = vim.api.nvim_win_get_cursor(cur_win)
-  local total_lines = vim.api.nvim_buf_line_count(cur_buf)
-  local modified = vim.bo[cur_buf].modified
-  local ft = vim.bo[cur_buf].filetype
+| Tool | Parameters | Description |
+| :--- | :--- | :--- |
+| `nvim_get_context` | `include_buffers?`, `context_lines?`, `include_diagnostics?` | Active file, cursor position, dirty state, visual selection (or surrounding source), LSP diagnostics, and open buffers. |
+| `nvim_read_buffer` | `target?` | Live in-memory buffer contents, including unsaved edits. Defaults to the active code buffer. |
+| `nvim_command` | `command`, `buffer?` | Run an Ex command against the user's active code buffer (not pi's terminal). Pass `buffer` (path/number) to target another file. `:edit!`/`:checktime` are refused when the buffer is dirty. |
+| `nvim_diagnostics` | `scope?` (`line`/`buffer`), `severity?` (`error`/`warning`/`all`) | LSP diagnostics for the cursor line or the whole buffer. |
 
-  -- Collect listed buffers
-  local listed = {}
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_get_option_value("buflisted", { buf = b }) then
-      local bname = vim.api.nvim_buf_get_name(b)
-      if bname ~= "" and vim.bo[b].buftype == "" then
-        table.insert(listed, {
-          bufnr = b,
-          name = vim.fn.fnamemodify(bname, ":~:."),
-          modified = vim.bo[b].modified,
-        })
-      end
-    end
-  end
+The context tool automatically ignores pi's own terminal buffer and reports the
+code buffer you were last using in the current tabpage.
 
-  return vim.json.encode({
-    active_file = file_path,
-    relative_file = rel_path,
-    file_name = file_name,
-    filetype = ft,
-    cursor_line = cursor[1],
-    cursor_col = cursor[2] + 1,
-    total_lines = total_lines,
-    modified = modified,
-    open_buffers = listed,
-  })
-end
+---
 
--- Helper for Pi agent: Read in-memory buffer content
-_G.PiGetBufferContent = function(target)
-  local bufnr = 0
-  if target and target ~= "" then
-    bufnr = vim.fn.bufnr(target)
-    if bufnr == -1 then
-      return ""
-    end
-  else
-    -- Use the active code buffer if in a terminal split
-    local cur_buf = vim.api.nvim_get_current_buf()
-    if vim.bo[cur_buf].buftype == "terminal" then
-      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        local b = vim.api.nvim_win_get_buf(win)
-        if vim.bo[b].buftype == "" and vim.api.nvim_buf_get_name(b) ~= "" then
-          bufnr = b
-          break
-        end
-      end
-    else
-      bufnr = cur_buf
-    end
-  end
+## ⌨️ Neovim bindings & preset commands
 
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  return table.concat(lines, "\n")
-end
-──────
-## 🔍 How It Works
+At startup the extension installs a small `PiNvim` helper into the running
+Neovim session:
 
-1. When Neovim starts a terminal or subshell, it exposes its active RPC server socket in the $NVIM environment variable.
-2. When Pi starts, the extension checks for process.env.NVIM.
-3. If detected, the extension registers RPC tools that execute non-blocking queries via nvim --server $NVIM --remote-expr and nvim --
-server $NVIM --remote-send.
-4. If Pi is run outside of Neovim, the extension remains completely inactive without overhead.
-──────
+- `:Pi review|explain|refactor|fix` — user command.
+- `_G.PiNvim.send(action)` — Lua API.
+- `<Plug>(PiReview)`, `<Plug>(PiExplain)`, `<Plug>(PiRefactor)`,
+  `<Plug>(PiFix)` — mappings you can bind to your own keys.
+
+Example keymaps (add to your Neovim config):
+
+```lua
+vim.keymap.set("n", "<leader>ag", "<Plug>(PiReview)",   { desc = "pi: review git changes" })
+vim.keymap.set("x", "<leader>ae", "<Plug>(PiExplain)",  { desc = "pi: explain selection" })
+vim.keymap.set("x", "<leader>ar", "<Plug>(PiRefactor)", { desc = "pi: refactor selection" })
+vim.keymap.set("n", "<leader>af", "<Plug>(PiFix)",      { desc = "pi: fix diagnostics" })
+```
+
+When invoked from visual mode, the selection is captured into
+`vim.g.pi_selection` before the command is sent, so pi can read it even after
+Neovim leaves visual mode. The selection expires after `vim.g.pi_selection_ttl`
+seconds (default `300`).
+
+The bindings send the preset command to the terminal channel running pi. If the
+terminal cannot be detected, set it explicitly:
+
+```lua
+vim.g.pi_term_channel = <channel id>  -- see :lua print(vim.bo.channel) in the pi terminal
+```
+
+### Preset commands
+
+| Command | What it does |
+| :--- | :--- |
+| `/nvim-review` | Reviews `git status` + staged/unstaged diffs. |
+| `/nvim-explain` | Explains the current selection, or source around the cursor. |
+| `/nvim-refactor` | Proposes a refactor for the selection/context. |
+| `/nvim-fix` | Fixes LSP diagnostics on the current line, or the whole buffer. |
+
+These are ordinary pi slash commands, so they can also be typed directly into pi.
+
+---
+
+## 🔄 Buffer sync details
+
+Before pi writes to a file, it checks Neovim for that path:
+
+- **Dirty buffer** → the write is **blocked** and a conflict **lock** is set.
+  While locked, all mutating tools (`write`, `edit`, `bash`, `powershell`,
+  `nvim_command`) are blocked, and `nvim_get_context` reports the conflict at
+  the top of its output. The lock clears automatically once the user saves or
+  discards the buffer, so a later retry succeeds. This is enforced in the
+  extension, not by asking the model to behave.
+
+After a successful `write`/`edit`, `tool_result` watchers keep Neovim in sync:
+
+- **Unmodified buffer** → reloaded from disk with a targeted `:edit` inside
+  `nvim_buf_call`, then all window views are restored. Neovim's `'undoreload'`
+  keeps the undo tree intact.
+- **Modified buffer** (race: dirtied between the check and the write) → left
+  untouched and the user is warned via `vim.notify`.
+- **Not loaded** → ignored.
+
+The reload is emitted as an RPC **notification** (no reply awaited).
+
+`nvim_command` also targets the user's code buffer rather than pi's terminal
+buffer, and refuses force-reload commands (`:edit!`, `:checktime`) that would
+discard unsaved changes.
+
+---
+
+## ⚙️ Configuration
+
+| Setting | Type | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| `$NVIM` | env | — | Neovim RPC socket. Required to activate the extension. |
+| `PI_NVIM_TRANSPORT` | env | `auto` | Set to `cli` to force the `nvim --server` fallback (debugging). |
+| `vim.g.pi_term_channel` | Lua | auto-detect | Pin the terminal channel running pi. |
+| `vim.g.pi_selection_ttl` | Lua | `300` | Seconds before a captured selection is considered stale. |
+
+---
+
+## 🩺 Troubleshooting
+
+- **“`$NVIM` is set, but the Neovim RPC socket is not reachable.”** — The
+  socket is stale or inaccessible. Try setting `PI_NVIM_TRANSPORT=cli`.
+- **Preset keymaps do nothing** — pi's terminal could not be detected by name.
+  Set `vim.g.pi_term_channel` to its channel id.
+- **A buffer did not reload after an edit** — it had unsaved changes in Neovim.
+  Save or revert the buffer, then run `:checktime` or `:e!`.- **No diagnostics** — LSP diagnostics are only present if an LSP client is
+  attached to the buffer.
+
+---
+
 ## 📜 License
 
 MIT
