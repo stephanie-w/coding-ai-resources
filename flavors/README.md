@@ -29,6 +29,21 @@ prompt (the cached prefix) stable and the transcript coherent.
 Model, thinking level, and tools are **not** part of a flavor. Pass them as
 normal pi flags, or use `/model` / `/thinking` mid-session.
 
+## Compatibility
+
+A flavor can declare an incompatibility with an HTML comment:
+
+```markdown
+<!-- incompatible: full -->
+```
+
+`just pi` rejects any selection that includes both sides. Currently:
+
+- **`rapid` ✗ `full`** — opposite ends of the ceremony axis (minimal updates vs
+  rich, continuous tracking). Pick one.
+
+`python` and `plan` compose with either.
+
 ## Relationship to `instructions/`
 
 `instructions/*.instructions.md` are harness-agnostic policies for Copilot-style

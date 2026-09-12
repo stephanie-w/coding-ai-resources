@@ -1,3 +1,4 @@
+<!-- incompatible: rapid -->
 # Flavor: Full (stateful task tracking)
 
 Rich, continuous task tracking in `TODO.md`: hypothesis, exploration, plan, observations, decisions.

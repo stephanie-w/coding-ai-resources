@@ -1,3 +1,4 @@
+<!-- incompatible: full -->
 # Flavor: Rapid (high velocity)
 
 Use for MVPs, prototypes, and exploratory work. Overrides the default rigor of the base persona.

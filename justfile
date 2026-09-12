@@ -153,11 +153,13 @@ pi *args:
 
     # Leading non-flag arguments are flavor names (one or more).
     # Later flavors override earlier ones, since --append-system-prompt stacks in order.
+    selected=()
     while [ $# -gt 0 ]; do
         case "$1" in
             -*) break ;; # start of pi flags
         esac
         if [ -f "$FLAVORS/$1.md" ]; then
+            selected+=("$1")
             cmd+=(--append-system-prompt "$FLAVORS/$1.md")
             shift
         else
@@ -172,5 +174,20 @@ pi *args:
             exit 1
         fi
     done
+
+    # Reject incompatible combinations declared in a flavor via `<!-- incompatible: name -->`.
+    if [ ${#selected[@]} -gt 1 ]; then
+        for name in "${selected[@]}"; do
+            blocked_list=$(grep -oE '<!-- *incompatible: *[^>]*-->' "$FLAVORS/$name.md" 2>/dev/null | sed -E 's/.*incompatible: *//; s/ *-->//' || true)
+            for blocked in $blocked_list; do
+                for other in "${selected[@]}"; do
+                    if [ "$blocked" = "$other" ] && [ "$name" != "$other" ]; then
+                        echo "✗ Flavor conflict: '$name' is incompatible with '$other'. Pick one." >&2
+                        exit 1
+                    fi
+                done
+            done
+        done
+    fi
 
     exec "${cmd[@]}" "$@"
