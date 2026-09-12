@@ -1,0 +1,8 @@
+{
+  "name": "pi-neovim",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./neovim.ts"]
+  }
+}
