@@ -15,11 +15,14 @@ coding-ai-resources/
 ├── agents/                     # Selectable persona and system prompt definitions
 │   ├── base.agent.md           # Default persona: communication, operational rules, baseline engineering
 │   └── teach.agent.md          # Teaching persona for dedicated learning sessions
+├── flavors/                    # Session-scoped overlays appended to the base persona
+│   └── plan.md                 # Read-only planning posture (launch with `just pi plan`)
 ├── instructions/               # Always-on rule files and standards
 │   ├── python-dev.instructions.md           # uv environment management, pytest, and QA gates
 │   ├── task-tracking-basic.instructions.md  # Simple checklist-style TODO.md rules
 │   └── task-tracking-full.instructions.md   # Rich stateful thought-process tracking
 ├── docs/                       # Research, backlogs, and catalogs
+│   ├── pi-harness.md           # Persona, flavors, and launcher for Pi sessions
 │   └── skills-backlog.md       # Evaluated candidate skills backlog
 ├── skills/                     # Reusable procedural skills (Agent Skills standard)
 │   ├── analyze-sessions/       # Tools for querying sessions, costs, and reflection
@@ -58,6 +61,9 @@ Install your core skills globally so they are available in every terminal and pr
 ```bash
 # Install core-pack globally into ~/.pi/agent/settings.json
 just install-global
+
+# Make the base persona Pi's global context file (one-time; all sessions)
+just link-persona
 ```
 
 ---
@@ -108,3 +114,5 @@ This launches a dedicated Pi session that:
 | `just install-pack <pack> <target>` | Install a package locally into a specific project. |
 | `just remove-pack <pack> <target>` | Remove a package locally from a project. |
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |
+| `just pi [flavor] [args]` | Launch Pi with `agents/base.agent.md` plus an optional `flavors/<flavor>.md` overlay. |
+| `just link-persona` | One-time: link `agents/base.agent.md` to `~/.pi/agent/AGENTS.md` (global persona). |
