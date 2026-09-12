@@ -1,0 +1,8 @@
+{
+  "name": "pi-git-checkpoint",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
