@@ -1,23 +1,27 @@
 # Coding AI Resources
 
-A centralized catalog of agentic resources (skills, agent definitions, instructions, templates, and installable packages) designed for AI coding agents such as Pi Agent, Antigravity, and Herdr multi-agent environments.
+A centralized catalog of agentic resources (personas, flavors, skills, instructions, extensions, templates, and installable packages) for AI coding agents such as Pi Agent and GitHub Copilot.
 
 ---
 
 ## Directory Architecture
 
 The repository follows a two-tier organization model:
-1. **Atomic Primitives (Root):** Self-contained building blocks (`agents/`, `instructions/`, `skills/`, `templates/`, `pi-extensions/`, `prompts/`).
+1. **Atomic Primitives (Root):** Self-contained building blocks (`agents/`, `flavors/`, `skills/`, `instructions/`, `templates/`, `pi-extensions/`, `prompts/`).
 2. **Composition Layer (`packages/`):** Manifests that bundle atomic resources into domain-specific, installable packages.
 
 ```text
 coding-ai-resources/
+├── AGENTS.md                   # Operating notes for this repo (just recipes, conventions)
 ├── agents/                     # Selectable persona and system prompt definitions
 │   ├── base.agent.md           # Default persona: communication, operational rules, baseline engineering
 │   └── teach.agent.md          # Teaching persona for dedicated learning sessions
-├── flavors/                    # Session-scoped overlays appended to the base persona
-│   └── plan.md                 # Read-only planning posture (launch with `just pi plan`)
-├── instructions/               # Always-on rule files and standards
+├── flavors/                    # Session-scoped overlays composed at launch (`just pi <flavor>...`)
+│   ├── plan.md                 # Read-only planning posture
+│   ├── rapid.md                # High-velocity MVP/prototype posture
+│   ├── full.md                 # Stateful TODO.md task tracking
+│   └── python.md               # Python engineering standards (uv, ruff/mypy/pytest, security)
+├── instructions/               # Harness-agnostic policies for Copilot-style agents (.instructions.md + applyTo)
 │   ├── python-dev.instructions.md           # uv environment management, pytest, and QA gates
 │   ├── task-tracking-basic.instructions.md  # Simple checklist-style TODO.md rules
 │   └── task-tracking-full.instructions.md   # Rich stateful thought-process tracking
@@ -33,6 +37,7 @@ coding-ai-resources/
 │   ├── idea-refine/            # Structured divergent/convergent ideation framework
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
 │   ├── session-handoff/        # Point-in-time state checkpointing and session resume
+│   ├── task-management/        # Structured TODO.md task/epic templates and lifecycle
 │   ├── technical-writing/      # Disciplined technical documentation, RFCs, and PR specs
 │   ├── unslop/                 # Removes AI writing tells and enforces compact human prose
 │   └── why/                    # Forensic investigation into code intent via Git history & ADRs
@@ -45,9 +50,7 @@ coding-ai-resources/
 ├── pi-extensions/              # TypeScript/JavaScript native extensions for Pi Agent
 ├── prompts/                    # Ephemeral task templates and slash commands
 ├── packages/                   # Composable bundles referencing root primitives
-│   ├── core/                   # Baseline pack (all general agent skills)
-│   │   └── package.json
-│   └── python-dev/             # Dedicated Python/uv development pack
+│   └── core/                   # Baseline pack (all general agent skills)
 │       └── package.json
 └── justfile                    # Operational automation recipes
 ```
@@ -95,7 +98,7 @@ just reflect 30d
 This launches a dedicated Pi session that:
 1. Mines human corrections from `~/.pi/agent/sessions/` using zero-token local Python extraction.
 2. Identifies recurring friction points.
-3. Directly proposes and commits updates to [agents/base.agent.md](agents/base.agent.md) or [instructions/](instructions/).
+3. Directly proposes and commits updates to [agents/base.agent.md](agents/base.agent.md), [instructions/](instructions/), or [flavors/](flavors/).
 
 ---
 
@@ -114,5 +117,5 @@ This launches a dedicated Pi session that:
 | `just install-pack <pack> <target>` | Install a package locally into a specific project. |
 | `just remove-pack <pack> <target>` | Remove a package locally from a project. |
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |
-| `just pi [flavor] [args]` | Launch Pi with `agents/base.agent.md` plus an optional `flavors/<flavor>.md` overlay. |
+| `just pi [flavor...] [args]` | Launch Pi with `agents/base.agent.md` plus zero or more `flavors/<flavor>.md` overlays. |
 | `just link-persona` | One-time: link `agents/base.agent.md` to `~/.pi/agent/AGENTS.md` (global persona). |

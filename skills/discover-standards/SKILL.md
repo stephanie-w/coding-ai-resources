@@ -13,7 +13,7 @@ Extracts tribal knowledge and implicit codebase conventions into compact, projec
 
 1. **User-Guided Focus:** The user initiates with a specific topic or architectural area (e.g. error handling, database sessions, test fixtures, data caching). If no topic is provided, ask the user which domain they want to formalize.
 2. **Tooling Discipline:** Use `justfile.agent` inspection recipes (`search`, `find-files`, `view`) or fast CLI tools (`rg`, `fd`) to locate real implementations.
-3. **Local-First Output:** Save standards directly to the active project's `AGENTS.md` (or project-local `instructions/<topic>.instructions.md`). Never modify global catalogs automatically.
+3. **Local-First Output:** Save standards directly to the active project's `AGENTS.md` (or project-local `instructions/<topic>.instructions.md` for Copilot-style harnesses). Never modify global catalogs automatically.
 4. **Rule-First Conciseness:** Lead with the rule, provide a short code example, and omit filler text.
 
 ---
@@ -58,6 +58,4 @@ db = SessionLocal()
 ```
 
 ### 4. Confirm and Write Locally
-Present the drafted standard for confirmation. Upon approval, append to:
-- Project root `AGENTS.md` / `GEMINI.md`, or
-- Project-local `instructions/<topic>.instructions.md`
+Present the drafted standard for confirmation. Upon approval, append to the project root `AGENTS.md`, or to a project-local `instructions/<topic>.instructions.md` for Copilot-style harnesses.

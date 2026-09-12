@@ -78,7 +78,7 @@ python3 prompts.py --since 7d --format jsonl
 #### Self-Improvement / Reflection Workflow:
 1. Run `python3 prompts.py --since 30d --corrections`.
 2. Group corrections by recurring themes (e.g., repeatedly corrected on environment setup, forbidden tools, formatting).
-3. Propose concrete additions to `agents/base.agent.md` or `instructions/` with exact diffs for user confirmation.
+3. Propose concrete additions to `agents/base.agent.md`, `instructions/`, or `flavors/` with exact diffs for user confirmation.
 
 ---
 

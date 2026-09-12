@@ -91,7 +91,7 @@ reflect timespan="30d":
         echo "No prompt corrections found in the last {{ timespan }}."
         exit 0
     fi
-    pi "I have extracted the following human prompt corrections across all sessions from the last {{ timespan }}. Please group recurring friction points and propose specific diffs to our files in agents/ or instructions/:" "$PROMPTS"
+    pi "I have extracted the following human prompt corrections across all sessions from the last {{ timespan }}. Please group recurring friction points and propose specific diffs to our files in agents/, instructions/, or flavors/:" "$PROMPTS"
 
 # Test-run Pi with skills loaded directly from this repository
 test-pack pack="core" *args="":
@@ -131,7 +131,7 @@ link-persona:
     ln -s "$SRC" "$DEST"
     echo "✓ Linked $DEST -> $SRC"
 
-# Launch a pi session with the base persona plus an optional flavor overlay. Usage: just pi [flavor] [pi args...]
+# Launch a pi session with the base persona plus zero or more flavor overlays. Usage: just pi [flavor...] [pi args...]
 pi *args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -151,25 +151,26 @@ pi *args:
         cmd+=(--append-system-prompt "$BASE")
     fi
 
-    if [ $# -gt 0 ]; then
+    # Leading non-flag arguments are flavor names (one or more).
+    # Later flavors override earlier ones, since --append-system-prompt stacks in order.
+    while [ $# -gt 0 ]; do
         case "$1" in
-            -*) ;; # leading dash: a pi flag, not a flavor
-            *)
-                if [ -f "$FLAVORS/$1.md" ]; then
-                    cmd+=(--append-system-prompt "$FLAVORS/$1.md")
-                    shift
-                else
-                    echo "✗ Unknown flavor '$1'. Available:" >&2
-                    for f in "$FLAVORS"/*.md; do
-                        [ -e "$f" ] || continue
-                        name="$(basename "$f" .md)"
-                        if [ "$name" != "README" ]; then
-                            echo "  - $name" >&2
-                        fi
-                    done
-                    exit 1
-                fi ;;
+            -*) break ;; # start of pi flags
         esac
-    fi
+        if [ -f "$FLAVORS/$1.md" ]; then
+            cmd+=(--append-system-prompt "$FLAVORS/$1.md")
+            shift
+        else
+            echo "✗ Unknown flavor '$1'. Available:" >&2
+            for f in "$FLAVORS"/*.md; do
+                [ -e "$f" ] || continue
+                name="$(basename "$f" .md)"
+                if [ "$name" != "README" ]; then
+                    echo "  - $name" >&2
+                fi
+            done
+            exit 1
+        fi
+    done
 
     exec "${cmd[@]}" "$@"

@@ -63,7 +63,16 @@ normal Pi flags (or use `/model` / `/thinking`).
 Inside the repo:
 
 ```bash
-just pi [flavor] [pi args...]
+just pi [flavor...] [pi args...]
+```
+
+Zero or more leading flavors compose in order (later overrides earlier):
+
+```bash
+just pi                  # base persona only
+just pi plan             # base + plan
+just pi rapid python     # base + rapid + python
+just pi rapid --model deepseek/deepseek-v4-flash "do the thing"
 ```
 
 From anywhere — add to `~/.bashrc`:
@@ -78,10 +87,11 @@ repo; `-f` makes `pih` work from any directory. Do **not** name the function
 
 ### Argument order matters
 
-Everything you pass to `pih` goes to the recipe, so:
-
-- The **flavor must be the first argument** (`pih plan …`). If the first
-  argument starts with `-`, it is treated as a Pi flag and no flavor is applied.
+- **Leading non-flag arguments are all flavors** (`pih rapid python`). The first
+  argument that starts with `-` ends the flavor list.
+- **Later flavors override earlier ones**, because `--append-system-prompt`
+  stacks in order. Put a broad posture first and specific overrides last.
+- A leading non-flag that is not a flavor is treated as a typo and errors.
 - Pi flags and their values must be **separate tokens**: `--model foo/bar`, not
   `"--model foo/bar"`. Quoting them together makes Pi see one unknown option.
 - Just options (`-f`, `--fmt`, …) go **before** the recipe; everything else goes
@@ -126,6 +136,14 @@ pih
 Read `PLAN.md` and implement. A new session is intentional: flavors are fixed
 per session, and the plan file is the handoff artifact — the same pattern as
 `skills/session-handoff`.
+
+### Compose layers (behavior + domain)
+
+```bash
+pih rapid python
+```
+
+Flavors stack in order; later ones can override earlier ones.
 
 ### A hard subproblem needs a stronger model
 
@@ -187,3 +205,4 @@ absolute path, or the literal path string gets appended instead of the file.
 | Reusable procedure | a skill |
 | Per-message nudge | a prompt snippet |
 | Enforced behaviour | an extension |
+| Copilot-style policy (`applyTo`) | `instructions/` — **not loaded by Pi** |
