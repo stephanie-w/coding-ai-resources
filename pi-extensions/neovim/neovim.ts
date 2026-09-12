@@ -28,7 +28,6 @@ import {
 	DEFAULT_MAX_LINES,
 	type AgentToolResult,
 	type ExtensionAPI,
-	type ExtensionCommandContext,
 	isEditToolResult,
 	isToolCallEventType,
 	isWriteToolResult,
@@ -1055,17 +1054,6 @@ function numberLines(lines: string[], startLine: number): string {
 	return lines.map((line, index) => `${String(startLine + index).padStart(width, " ")} | ${line}`).join("\n");
 }
 
-function renderCodeBlock(context: NvimContext): string {
-	const filetype = context.filetype ?? "";
-	if (context.selection) {
-		return `\`\`\`${filetype}\n${context.selection.text}\n\`\`\``;
-	}
-	if (context.context) {
-		return `\`\`\`${filetype}\n${numberLines(context.context.lines, context.context.start_line)}\n\`\`\``;
-	}
-	return "";
-}
-
 function renderDiagnostics(diagnostics: NvimDiagnostic[]): string {
 	return diagnostics
 		.map((diagnostic) => {
@@ -1245,26 +1233,22 @@ async function getBufferStatus(client: NvimClient, absolutePath: string): Promis
 // 7. Neovim-side Lua bindings
 // ---------------------------------------------------------------------------
 //
-// Installed once per session. Provides `:Pi <action>` and `<Plug>` mappings that
-// capture the current visual selection and forward a preset command to the pi
-// terminal. Users can map their preferred keys to the <Plug> mappings, e.g.:
+// Installed once per session. Provides `:Pi /<command>` and the `Pi.send()` Lua
+// API, which capture the current visual selection and forward a command to the
+// pi terminal. The command can be any pi slash command or prompt — there are no
+// built-in presets. Users bind their own keys in Neovim, e.g.:
 //
-//   vim.keymap.set("x", "<leader>ae", "<Plug>(PiExplain)")
-//   vim.keymap.set("x", "<leader>ar", "<Plug>(PiRefactor)")
-//   vim.keymap.set("n", "<leader>af", "<Plug>(PiFix)")
-//   vim.keymap.set("n", "<leader>ag", "<Plug>(PiReview)")
+//   vim.keymap.set("x", "<leader>ae", function() _G.PiNvim.send("/explain") end)
+//   vim.keymap.set("n", "<leader>af", function() _G.PiNvim.send("/fix") end)
 
 const NVIM_BINDINGS_LUA = `
 -- Installed by the pi Neovim extension (idempotent).
 _G.PiNvim = _G.PiNvim or {}
 local Pi = _G.PiNvim
 
-Pi.actions = {
-  review = "/nvim-review",
-  explain = "/nvim-explain",
-  refactor = "/nvim-refactor",
-  fix = "/nvim-fix",
-}
+-- Optional aliases: map a short name to a pi command, then call
+-- Pi.send("name"). e.g. Pi.actions.review = "/review"
+Pi.actions = Pi.actions or {}
 
 -- Capture the live visual selection into vim.g.pi_selection so pi can read it
 -- even after Neovim leaves visual mode.
@@ -1322,7 +1306,7 @@ function Pi.send(action)
     command = action
   end
   if not command then
-    vim.notify("[pi] Unknown action: " .. tostring(action), vim.log.levels.ERROR)
+    vim.notify("[pi] No command given. Pass '/<command>' or define Pi.actions.", vim.log.levels.ERROR)
     return
   end
   local channel = Pi.find_terminal()
@@ -1336,7 +1320,7 @@ end
 pcall(vim.api.nvim_del_user_command, "Pi")
 vim.api.nvim_create_user_command("Pi", function(args)
   -- When invoked from visual mode Neovim passes the selection as a range
-  -- (":'<,'>Pi explain"). Stash those exact lines for pi to read.
+  -- (":'<,'>Pi /explain"). Stash those exact lines for pi to read.
   if args.range >= 1 then
     local lines = vim.api.nvim_buf_get_lines(0, args.line1 - 1, args.line2, false)
     if #lines > 0 then
@@ -1351,25 +1335,20 @@ vim.api.nvim_create_user_command("Pi", function(args)
       })
     end
   end
-  Pi.send(args.args ~= "" and args.args or "explain")
+  if args.args == "" then
+    vim.notify("[pi] Usage: :Pi /<command> (e.g. :Pi /explain)", vim.log.levels.WARN)
+    return
+  end
+  Pi.send(args.args)
 end, {
   nargs = "?",
   range = true,
-  complete = function()
-    return { "review", "explain", "refactor", "fix" }
-  end,
-  desc = "Send a preset prompt to the pi agent",
+  desc = "Send a slash-command to the pi agent",
 })
-
-vim.keymap.set("n", "<Plug>(PiReview)", function() Pi.send("review") end, { silent = true })
-vim.keymap.set("n", "<Plug>(PiExplain)", function() Pi.send("explain") end, { silent = true })
-vim.keymap.set("x", "<Plug>(PiExplain)", function() Pi.send("explain") end, { silent = true })
-vim.keymap.set("x", "<Plug>(PiRefactor)", function() Pi.send("refactor") end, { silent = true })
-vim.keymap.set("n", "<Plug>(PiFix)", function() Pi.send("fix") end, { silent = true })
 `;
 
 // ---------------------------------------------------------------------------
-// 8. pi tools, commands and lifecycle hooks
+// 8. pi tools and lifecycle hooks
 // ---------------------------------------------------------------------------
 
 const getContextParameters = Type.Object({
@@ -1423,82 +1402,6 @@ function errorMessage(error: unknown): string {
 function errorResult(error: unknown): AgentToolResult<unknown> {
 	const message = errorMessage(error);
 	return { content: [{ type: "text", text: `Neovim error: ${message}` }], details: { error: message } };
-}
-
-function truncateText(text: string, maxLines: number, maxChars = 20000): string {
-	const lines = text.split("\n");
-	const sliced = lines.length > maxLines ? `${lines.slice(0, maxLines).join("\n")}\n… (truncated)` : text;
-	return sliced.length > maxChars ? `${sliced.slice(0, maxChars)}\n… (truncated)` : sliced;
-}
-
-async function runContextPrompt(
-	pi: ExtensionAPI,
-	ctx: ExtensionCommandContext,
-	client: NvimClient,
-	options: ContextOptions & { instruction: string },
-): Promise<void> {
-	let context: NvimContext;
-	try {
-		context = await collectContext(client, options);
-	} catch (error) {
-		ctx.ui.notify(`[Neovim] ${errorMessage(error)}`, "error");
-		return;
-	}
-	if (!context.has_buffer) {
-		ctx.ui.notify("[Neovim] No file buffer is open.", "warning");
-		return;
-	}
-
-	const parts: string[] = [options.instruction, ""];
-	const location = `${context.relative_file || context.file || "(unnamed)"} (${context.filetype || "plain"})`;
-	parts.push(`File: \`${location}\`, cursor at ${context.cursor_line}:${context.cursor_col}.`);
-	if (context.selection) {
-		parts.push(
-			`${context.selection.kind === "visual" ? "Current visual selection" : "Last captured selection"}: lines ${context.selection.start_line}-${context.selection.end_line}.`,
-		);
-	}
-	parts.push("");
-	parts.push(renderCodeBlock(context));
-
-	const diagnostics = context.diagnostics ?? [];
-	if (diagnostics.length > 0) {
-		parts.push("");
-		parts.push("Relevant diagnostics:");
-		parts.push(renderDiagnostics(diagnostics));
-	}
-
-	pi.sendUserMessage(parts.join("\n"));
-}
-
-async function runGitReview(
-	pi: ExtensionAPI,
-	ctx: ExtensionCommandContext,
-): Promise<void> {
-	const run = async (args: string[]): Promise<string> => {
-		try {
-			const result = await pi.exec("git", args, { cwd: ctx.cwd });
-			return result.stdout.trim();
-		} catch (error) {
-			return "";
-		}
-	};
-
-	const status = await run(["status", "--short"]);
-	const unstaged = await run(["diff", "--no-color"]);
-	const staged = await run(["diff", "--cached", "--no-color"]);
-
-	if (!status && !unstaged && !staged) {
-		ctx.ui.notify("[Neovim] Nothing to review (no git changes or not a git repository).", "info");
-		return;
-	}
-
-	const parts: string[] = [
-		"Review the current git changes. Focus on correctness, edge cases, and regressions. Call out anything risky before suggesting edits.",
-	];
-	if (status) parts.push("", "### git status", "```", truncateText(status, 200), "```");
-	if (unstaged) parts.push("", "### unstaged diff", "```diff", truncateText(unstaged, 400), "```");
-	if (staged) parts.push("", "### staged diff", "```diff", truncateText(staged, 400), "```");
-	pi.sendUserMessage(parts.join("\n"));
 }
 
 export default function neovimExtension(pi: ExtensionAPI): void {
@@ -1691,74 +1594,6 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 			} catch (error) {
 				return errorResult(error);
 			}
-		},
-	});
-
-	// --- Commands ----------------------------------------------------------
-	//
-	// These are the presets invoked by the Neovim bindings (:Pi <action> or the
-	// <Plug>(Pi*) mappings).
-
-	pi.registerCommand("nvim-explain", {
-		description: "Explain the current Neovim selection or cursor context",
-		handler: async (_args, ctx) => {
-			await runContextPrompt(pi, ctx, client, {
-				instruction:
-					"Explain the following code clearly and concisely. Describe what it does, any subtle behavior, and anything that looks off.",
-				contextLines: 15,
-			});
-		},
-	});
-
-	pi.registerCommand("nvim-refactor", {
-		description: "Suggest a refactor for the current Neovim selection or cursor context",
-		handler: async (_args, ctx) => {
-			await runContextPrompt(pi, ctx, client, {
-				instruction:
-					"Propose a refactor for the following code. Explain the reasoning and only apply edits once the approach is clear.",
-				contextLines: 15,
-			});
-		},
-	});
-
-	pi.registerCommand("nvim-fix", {
-		description: "Fix LSP diagnostics on the current line or in the current Neovim buffer",
-		handler: async (_args, ctx) => {
-			let context: NvimContext;
-			try {
-				context = await collectContext(client, { contextLines: 20, includeBuffers: false });
-			} catch (error) {
-				ctx.ui.notify(`[Neovim] ${errorMessage(error)}`, "error");
-				return;
-			}
-			if (!context.has_buffer) {
-				ctx.ui.notify("[Neovim] No file buffer is open.", "warning");
-				return;
-			}
-			const all = context.diagnostics ?? [];
-			const lineDiagnostics = all.filter((diagnostic) => diagnostic.line === context.cursor_line);
-			const diagnostics = lineDiagnostics.length > 0 ? lineDiagnostics : all;
-			if (diagnostics.length === 0) {
-				ctx.ui.notify("[Neovim] No LSP diagnostics in the current buffer.", "info");
-				return;
-			}
-			const scope =
-				lineDiagnostics.length > 0 ? `line ${context.cursor_line}` : "the current buffer";
-			const parts: string[] = [
-				`Fix the following LSP diagnostics on ${scope} in \`${context.relative_file || context.file}\`.`,
-				"",
-				renderDiagnostics(diagnostics),
-				"",
-				renderCodeBlock(context),
-			];
-			pi.sendUserMessage(parts.join("\n"));
-		},
-	});
-
-	pi.registerCommand("nvim-review", {
-		description: "Review the current git changes with Neovim context",
-		handler: async (_args, ctx) => {
-			await runGitReview(pi, ctx);
 		},
 	});
 

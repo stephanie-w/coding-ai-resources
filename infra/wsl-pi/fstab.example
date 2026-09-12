@@ -1,0 +1,27 @@
+# Optional: /etc/fstab inside the *pi* distro.
+#
+# Exposes ONE directory from your daily dev distro — its ~/DEV — so pi can work
+# on the same files without giving it the dev distro (or Windows) wholesale.
+# Everything else stays invisible.
+#
+# Do NOT hand-write this. Generate the exact line with:
+#
+#   DEV_DISTRO=<dev-distro-name> DEV_USER=<dev-user> ./mount-dev.sh --print-fstab
+#
+# Test the mount manually first (see mount-dev.sh), then paste the generated
+# line below and run: sudo mount -a
+#
+# Requirements:
+#   - the daily dev distro must be running, or the mount fails
+#   - replace <DEV_DISTRO> with the name from `wsl -l -v`
+#   - replace <DEV_USER>   with your Linux user in that distro
+#   - 1000:1000 assumes the pi user is uid/gid 1000 (adjust if not)
+#
+# Verify the path first (do not add to fstab until this succeeds):
+#
+#   sudo mkdir -p /mnt/dev
+#   sudo mount -t drvfs '\\wsl.localhost\<DEV_DISTRO>\home\<DEV_USER>\DEV' /mnt/dev
+#   ls /mnt/dev
+#
+# Generated line goes here:
+# \\wsl.localhost\<DEV_DISTRO>\home\<DEV_USER>\DEV  /mnt/dev  drvfs  defaults,uid=1000,gid=1000,umask=022  0 0

@@ -18,9 +18,9 @@ trigger pi workflows with a keystroke.
   Neovim, a fire-and-forget **RPC notification** reloads the buffer from disk.
   Unmodified buffers reload in place; the undo tree and window views are
   preserved. Buffers with unsaved changes are skipped and the user is warned.
-- **Neovim-triggered presets** — `:Pi <action>` and `<Plug>(Pi*)` mappings send
-  `/nvim-review`, `/nvim-explain`, `/nvim-refactor`, or `/nvim-fix` to the pi
-  terminal, capturing the current visual selection first.
+- **Neovim-triggered commands** — `:Pi /<command>` and `_G.PiNvim.send()`
+  forward any pi slash command or prompt to the pi terminal, capturing the
+  current visual selection first. There are no built-in presets.
 - **Self-contained** — speaks Neovim's MessagePack-RPC protocol directly over
   the socket. No Lua config is required, though helper bindings are installed
   automatically.
@@ -33,7 +33,7 @@ trigger pi workflows with a keystroke.
 
 1. Neovim exposes its RPC socket path in the `$NVIM` environment variable.
 2. The extension opens a long-lived MessagePack-RPC connection to that socket.
-3. Tools and commands query/act on Neovim through `nvim_exec_lua`.
+3. Tools query and act on Neovim through `nvim_exec_lua`.
 4. If the socket cannot be opened, it falls back to
    `nvim --server "$NVIM" --remote-expr` transparently.
 5. When pi is run outside Neovim, the extension is completely inert.
@@ -78,47 +78,47 @@ code buffer you were last using in the current tabpage.
 
 ---
 
-## ⌨️ Neovim bindings & preset commands
+## ⌨️ Neovim bindings
 
 At startup the extension installs a small `PiNvim` helper into the running
-Neovim session:
+Neovim session. It forwards pi slash commands from Neovim; there are no built-in
+presets — you decide what to send.
 
-- `:Pi review|explain|refactor|fix` — user command.
-- `_G.PiNvim.send(action)` — Lua API.
-- `<Plug>(PiReview)`, `<Plug>(PiExplain)`, `<Plug>(PiRefactor)`,
-  `<Plug>(PiFix)` — mappings you can bind to your own keys.
-
-Example keymaps (add to your Neovim config):
-
-```lua
-vim.keymap.set("n", "<leader>ag", "<Plug>(PiReview)",   { desc = "pi: review git changes" })
-vim.keymap.set("x", "<leader>ae", "<Plug>(PiExplain)",  { desc = "pi: explain selection" })
-vim.keymap.set("x", "<leader>ar", "<Plug>(PiRefactor)", { desc = "pi: refactor selection" })
-vim.keymap.set("n", "<leader>af", "<Plug>(PiFix)",      { desc = "pi: fix diagnostics" })
-```
+- `:Pi /<command>` — user command (e.g. `:Pi /review`). The argument must start
+  with `/` and is passed to pi verbatim.
+- `_G.PiNvim.send(command)` — Lua API. Accepts either a `/command` or a name
+  defined in `_G.PiNvim.actions`.
 
 When invoked from visual mode, the selection is captured into
 `vim.g.pi_selection` before the command is sent, so pi can read it even after
 Neovim leaves visual mode. The selection expires after `vim.g.pi_selection_ttl`
 seconds (default `300`).
 
-The bindings send the preset command to the terminal channel running pi. If the
-terminal cannot be detected, set it explicitly:
+Bind your own keys to whatever pi command, prompt, or skill you want:
+
+```lua
+vim.keymap.set("x", "<leader>ae", function() _G.PiNvim.send("/explain") end, { desc = "pi: explain selection" })
+vim.keymap.set("x", "<leader>ar", function() _G.PiNvim.send("/refactor") end, { desc = "pi: refactor selection" })
+vim.keymap.set("n", "<leader>af", function() _G.PiNvim.send("/fix") end, { desc = "pi: fix diagnostics" })
+```
+
+Optional aliases keep keymaps short:
+
+```lua
+_G.PiNvim.actions.review = "/review"
+vim.keymap.set("n", "<leader>ag", function() _G.PiNvim.send("review") end)
+```
+
+The commands are ordinary pi slash commands, prompt templates, or skills, so
+they can also be typed directly into pi or shared like any other prompt. The
+extension's only job is to forward them and attach the live selection.
+
+The binding sends to the terminal channel running pi. If the terminal cannot be
+detected, set it explicitly:
 
 ```lua
 vim.g.pi_term_channel = <channel id>  -- see :lua print(vim.bo.channel) in the pi terminal
 ```
-
-### Preset commands
-
-| Command | What it does |
-| :--- | :--- |
-| `/nvim-review` | Reviews `git status` + staged/unstaged diffs. |
-| `/nvim-explain` | Explains the current selection, or source around the cursor. |
-| `/nvim-refactor` | Proposes a refactor for the selection/context. |
-| `/nvim-fix` | Fixes LSP diagnostics on the current line, or the whole buffer. |
-
-These are ordinary pi slash commands, so they can also be typed directly into pi.
 
 ---
 
@@ -165,8 +165,8 @@ discard unsaved changes.
 
 - **“`$NVIM` is set, but the Neovim RPC socket is not reachable.”** — The
   socket is stale or inaccessible. Try setting `PI_NVIM_TRANSPORT=cli`.
-- **Preset keymaps do nothing** — pi's terminal could not be detected by name.
-  Set `vim.g.pi_term_channel` to its channel id.
+- **Keymaps do nothing** — pi's terminal could not be detected by name. Set
+  `vim.g.pi_term_channel` to its channel id.
 - **A buffer did not reload after an edit** — it had unsaved changes in Neovim.
   Save or revert the buffer, then run `:checktime` or `:e!`.- **No diagnostics** — LSP diagnostics are only present if an LSP client is
   attached to the buffer.
