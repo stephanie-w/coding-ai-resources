@@ -1,0 +1,38 @@
+{
+  "arch": "x86_64",
+  "distro": "alpine",
+  "alpine": {
+    "version": "3.23.0",
+    "rootfsPackages": [
+      "linux-virt",
+      "rng-tools",
+      "bash",
+      "ca-certificates",
+      "curl",
+      "e2fsprogs",
+      "nodejs",
+      "npm",
+      "python3",
+      "uv",
+      "openssh",
+      "git",
+      "jq",
+      "just",
+      "ripgrep",
+      "fd",
+      "file",
+      "coreutils",
+      "tree",
+      "tar",
+      "gzip",
+      "unzip",
+      "make",
+      "diffutils",
+      "patch",
+      "procps"
+    ]
+  },
+  "rootfs": {
+    "label": "gondolin-dev-root"
+  }
+}

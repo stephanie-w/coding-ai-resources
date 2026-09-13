@@ -1,142 +1,302 @@
 /**
- * Pi + Gondolin Sandbox Example (pi extension)
+ * Pi + Gondolin Sandbox Extension
  *
- * This extension overrides pi's built-in `read`/`write`/`edit`/`bash` tools so
- * they execute inside a Gondolin micro-VM instead of on the host.
- *
- * The directory you start `pi` in is mounted read-write at `/workspace` inside
- * the VM.
- *
- * How to run:
- *   1. Install dependencies for this repo (so imports resolve):
- *        pnpm install
- *   2. Ensure QEMU is installed (see the gondolin README "Quick Start")
- *   3. Start pi in the project you want to sandbox:
- *        cd /path/to/your/project
- *        pi -e /absolute/path/to/gondolin/host/examples/pi-gondolin.ts
- *
- * Notes:
- *   - The VM is started on `session_start` (and lazily if a tool is used before that)
- *   - User `!` commands are also executed inside the VM
- *   - Module resolution happens relative to this file, so keeping it inside the
- *     gondolin repo (or installing `@earendil-works/gondolin` next to it) is easiest
+ * Runs pi's built-in tools (read, write, edit, bash, ls, find, grep) inside a
+ * local Gondolin micro-VM. The host working directory is mounted at /workspace
+ * in the guest.
  */
 
 import path from "node:path";
-
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import { RealFSProvider, VM, createHttpHooks } from "@earendil-works/gondolin";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   type BashOperations,
   createBashTool,
   createEditTool,
+  createFindTool,
+  createGrepTool,
+  createLsTool,
   createReadTool,
   createWriteTool,
+  DEFAULT_MAX_BYTES,
   type EditOperations,
+  type FindOperations,
+  formatSize,
+  type GrepToolDetails,
+  type GrepToolInput,
+  type LsOperations,
   type ReadOperations,
+  truncateHead,
+  truncateLine,
   type WriteOperations,
 } from "@earendil-works/pi-coding-agent";
 
-import { RealFSProvider, VM, createHttpHooks } from "@earendil-works/gondolin";
-
 const GUEST_WORKSPACE = "/workspace";
+const DEFAULT_GREP_LIMIT = 100;
 
-function shQuote(value: string): string {
-  // POSIX shell quoting: wraps in single quotes and escapes internal quotes
-  return "'" + value.replace(/'/g, "'\\''") + "'";
+type TextToolResult<TDetails> = {
+  content: Array<{ type: "text"; text: string }>;
+  details: TDetails | undefined;
+};
+
+function stripAtPrefix(value: string): string {
+  return value.startsWith("@") ? value.slice(1) : value;
 }
 
-function toGuestPath(localCwd: string, localPath: string): string {
-  // pi tools pass absolute local paths; map them into /workspace.
-  const rel = path.relative(localCwd, localPath);
-  if (rel === "") return GUEST_WORKSPACE;
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    throw new Error(`path escapes workspace: ${localPath}`);
+function toPosix(value: string): string {
+  return value.split(path.sep).join(path.posix.sep);
+}
+
+function isInsideHostPath(root: string, value: string): boolean {
+  const relativePath = path.relative(root, value);
+  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+}
+
+function hostPathToGuest(localCwd: string, hostPath: string): string {
+  const relativePath = path.relative(localCwd, hostPath);
+  if (!isInsideHostPath(localCwd, hostPath)) return toPosix(hostPath);
+  return relativePath ? path.posix.join(GUEST_WORKSPACE, toPosix(relativePath)) : GUEST_WORKSPACE;
+}
+
+function toGuestPath(localCwd: string, inputPath: string): string {
+  const trimmed = stripAtPrefix(inputPath.trim());
+  if (!trimmed) return GUEST_WORKSPACE;
+  if (path.isAbsolute(trimmed)) {
+    if (isInsideHostPath(localCwd, trimmed)) return hostPathToGuest(localCwd, trimmed);
+    return path.posix.resolve("/", toPosix(trimmed));
   }
-  // Convert platform separators to POSIX for the Linux guest
-  const posixRel = rel.split(path.sep).join(path.posix.sep);
-  return path.posix.join(GUEST_WORKSPACE, posixRel);
+  return path.posix.resolve(GUEST_WORKSPACE, toPosix(trimmed));
 }
 
 function createGondolinReadOps(vm: VM, localCwd: string): ReadOperations {
   return {
-    readFile: async (p) => {
-      const guestPath = toGuestPath(localCwd, p);
-      const r = await vm.exec(["/bin/cat", guestPath]);
-      if (!r.ok) {
-        throw new Error(`cat failed (${r.exitCode}): ${r.stderr}`);
-      }
-      return r.stdoutBuffer;
+    readFile: async (filePath) => vm.fs.readFile(toGuestPath(localCwd, filePath)),
+    access: async (filePath) => {
+      await vm.fs.access(toGuestPath(localCwd, filePath));
     },
-    access: async (p) => {
-      const guestPath = toGuestPath(localCwd, p);
-      const r = await vm.exec([
-        "/bin/sh",
-        "-lc",
-        `test -r ${shQuote(guestPath)}`,
-      ]);
-      if (!r.ok) {
-        throw new Error(`not readable: ${p}`);
-      }
-    },
-    detectImageMimeType: async (p) => {
-      const guestPath = toGuestPath(localCwd, p);
-      try {
-        // Run through the shell because `file` might live in `/usr/bin` depending on the image
-        const r = await vm.exec([
-          "/bin/sh",
-          "-lc",
-          `file --mime-type -b ${shQuote(guestPath)}`,
-        ]);
-        if (!r.ok) return null;
-        const m = r.stdout.trim();
-        return ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(
-          m,
-        )
-          ? m
-          : null;
-      } catch {
-        return null;
-      }
+    detectImageMimeType: async (filePath) => {
+      const ext = path.posix.extname(toGuestPath(localCwd, filePath)).toLowerCase();
+      if (ext === ".png") return "image/png";
+      if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+      if (ext === ".gif") return "image/gif";
+      if (ext === ".webp") return "image/webp";
+      return null;
     },
   };
 }
 
 function createGondolinWriteOps(vm: VM, localCwd: string): WriteOperations {
   return {
-    writeFile: async (p, content) => {
-      const guestPath = toGuestPath(localCwd, p);
-      const dir = path.posix.dirname(guestPath);
-
-      // Base64 roundtrip to avoid quoting issues
-      const b64 = Buffer.from(content, "utf8").toString("base64");
-      const script = [
-        `set -eu`,
-        `mkdir -p ${shQuote(dir)}`,
-        `echo ${shQuote(b64)} | base64 -d > ${shQuote(guestPath)}`,
-      ].join("\n");
-
-      const r = await vm.exec(["/bin/sh", "-lc", script]);
-      if (!r.ok) {
-        throw new Error(`write failed (${r.exitCode}): ${r.stderr}`);
-      }
+    writeFile: async (filePath, content) => {
+      await vm.fs.writeFile(toGuestPath(localCwd, filePath), content, { encoding: "utf8" });
     },
-    mkdir: async (dir) => {
-      const guestDir = toGuestPath(localCwd, dir);
-      const r = await vm.exec(["/bin/mkdir", "-p", guestDir]);
-      if (!r.ok) {
-        throw new Error(`mkdir failed (${r.exitCode}): ${r.stderr}`);
-      }
+    mkdir: async (dirPath) => {
+      await vm.fs.mkdir(toGuestPath(localCwd, dirPath), { recursive: true });
     },
   };
 }
 
 function createGondolinEditOps(vm: VM, localCwd: string): EditOperations {
-  const r = createGondolinReadOps(vm, localCwd);
-  const w = createGondolinWriteOps(vm, localCwd);
-  return { readFile: r.readFile, access: r.access, writeFile: w.writeFile };
+  const readOps = createGondolinReadOps(vm, localCwd);
+  const writeOps = createGondolinWriteOps(vm, localCwd);
+  return {
+    readFile: readOps.readFile,
+    writeFile: writeOps.writeFile,
+    access: readOps.access,
+  };
+}
+
+function createGondolinLsOps(vm: VM, localCwd: string): LsOperations {
+  return {
+    exists: async (filePath) => {
+      try {
+        await vm.fs.access(toGuestPath(localCwd, filePath));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    stat: async (filePath) => vm.fs.stat(toGuestPath(localCwd, filePath)),
+    readdir: async (dirPath) => vm.fs.listDir(toGuestPath(localCwd, dirPath)),
+  };
+}
+
+async function walkGuestFiles(
+  vm: VM,
+  root: string,
+  visit: (guestPath: string, relativePath: string) => Promise<boolean>,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (signal?.aborted) throw new Error("Operation aborted");
+  const stat = await vm.fs.stat(root, { signal });
+  if (!stat.isDirectory()) return visit(root, path.posix.basename(root));
+
+  const walkDirectory = async (dir: string, relativeDir: string): Promise<boolean> => {
+    if (signal?.aborted) throw new Error("Operation aborted");
+    const entries = await vm.fs.listDir(dir, { signal });
+    for (const entry of entries) {
+      if (entry === ".git" || entry === "node_modules") continue;
+      const guestPath = path.posix.join(dir, entry);
+      const relativePath = relativeDir ? path.posix.join(relativeDir, entry) : entry;
+      let entryStat: Awaited<ReturnType<VM["fs"]["stat"]>>;
+      try {
+        entryStat = await vm.fs.stat(guestPath, { signal });
+      } catch {
+        continue;
+      }
+      if (entryStat.isDirectory()) {
+        if (!(await walkDirectory(guestPath, relativePath))) return false;
+      } else if (!(await visit(guestPath, relativePath))) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  return walkDirectory(root, "");
+}
+
+function matchesToolGlob(relativePath: string, pattern: string): boolean {
+  const normalizedPattern = toPosix(pattern);
+  if (normalizedPattern.includes("/")) {
+    return (
+      path.posix.matchesGlob(relativePath, normalizedPattern) ||
+      path.posix.matchesGlob(relativePath, `**/${normalizedPattern}`)
+    );
+  }
+  return path.posix.matchesGlob(path.posix.basename(relativePath), normalizedPattern);
+}
+
+function createGondolinFindOps(vm: VM, localCwd: string): FindOperations {
+  return {
+    exists: async (filePath) => {
+      try {
+        await vm.fs.access(toGuestPath(localCwd, filePath));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    glob: async (pattern, cwd, options) => {
+      const root = toGuestPath(localCwd, cwd);
+      const results: string[] = [];
+      await walkGuestFiles(vm, root, async (guestPath, relativePath) => {
+        if (results.length >= options.limit) return false;
+        if (matchesToolGlob(relativePath, pattern)) results.push(guestPath);
+        return results.length < options.limit;
+      });
+      return results;
+    },
+  };
+}
+
+function createLineMatcher(pattern: string, literal: boolean | undefined, ignoreCase: boolean | undefined) {
+  if (literal) {
+    const needle = ignoreCase ? pattern.toLowerCase() : pattern;
+    return (line: string) => (ignoreCase ? line.toLowerCase() : line).includes(needle);
+  }
+  const regex = new RegExp(pattern, ignoreCase ? "i" : undefined);
+  return (line: string) => regex.test(line);
+}
+
+function appendGrepBlock(params: {
+  outputLines: string[];
+  lines: string[];
+  relativePath: string;
+  lineIndex: number;
+  contextLines: number;
+}): boolean {
+  let linesTruncated = false;
+  const start = params.contextLines > 0 ? Math.max(0, params.lineIndex - params.contextLines) : params.lineIndex;
+  const end =
+    params.contextLines > 0
+      ? Math.min(params.lines.length - 1, params.lineIndex + params.contextLines)
+      : params.lineIndex;
+
+  for (let index = start; index <= end; index++) {
+    const rawLine = params.lines[index] ?? "";
+    const { text, wasTruncated } = truncateLine(rawLine.replace(/\r/g, ""));
+    if (wasTruncated) linesTruncated = true;
+    const separator = index === params.lineIndex ? ":" : "-";
+    params.outputLines.push(`${params.relativePath}${separator}${index + 1}${separator} ${text}`);
+  }
+  return linesTruncated;
+}
+
+async function executeGondolinGrep(
+  vm: VM,
+  localCwd: string,
+  params: GrepToolInput,
+  signal?: AbortSignal,
+): Promise<TextToolResult<GrepToolDetails>> {
+  const root = toGuestPath(localCwd, params.path ?? ".");
+  const rootStat = await vm.fs.stat(root, { signal });
+  const rootIsDirectory = rootStat.isDirectory();
+  const matcher = createLineMatcher(params.pattern, params.literal, params.ignoreCase);
+  const contextLines = params.context && params.context > 0 ? params.context : 0;
+  const effectiveLimit = Math.max(1, params.limit ?? DEFAULT_GREP_LIMIT);
+  const outputLines: string[] = [];
+  const details: GrepToolDetails = {};
+  let matchCount = 0;
+  let matchLimitReached = false;
+  let linesTruncated = false;
+
+  await walkGuestFiles(
+    vm,
+    root,
+    async (guestPath, relativePath) => {
+      if (matchCount >= effectiveLimit) return false;
+      if (params.glob && !matchesToolGlob(relativePath, params.glob)) return true;
+      let content: string;
+      try {
+        content = await vm.fs.readFile(guestPath, { encoding: "utf8", signal });
+      } catch {
+        return true;
+      }
+      const lines = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+      const displayPath = rootIsDirectory ? relativePath : path.posix.basename(guestPath);
+      for (let index = 0; index < lines.length; index++) {
+        if (signal?.aborted) throw new Error("Operation aborted");
+        if (!matcher(lines[index] ?? "")) continue;
+        matchCount++;
+        if (appendGrepBlock({ outputLines, lines, relativePath: displayPath, lineIndex: index, contextLines })) {
+          linesTruncated = true;
+        }
+        if (matchCount >= effectiveLimit) {
+          matchLimitReached = true;
+          return false;
+        }
+      }
+      return true;
+    },
+    signal,
+  );
+
+  if (matchCount === 0) return { content: [{ type: "text", text: "No matches found" }], details: undefined };
+
+  const rawOutput = outputLines.join("\n");
+  const truncation = truncateHead(rawOutput, { maxLines: Number.MAX_SAFE_INTEGER });
+  const notices: string[] = [];
+  let output = truncation.content;
+
+  if (matchLimitReached) {
+    details.matchLimitReached = effectiveLimit;
+    notices.push(`${effectiveLimit} matches limit reached`);
+  }
+  if (linesTruncated) {
+    details.linesTruncated = true;
+    notices.push("long lines truncated");
+  }
+  if (truncation.truncated) {
+    details.truncation = truncation;
+    notices.push(`${formatSize(DEFAULT_MAX_BYTES)} limit reached`);
+  }
+  if (notices.length > 0) output += `\n\n[${notices.join(". ")}]`;
+
+  return {
+    content: [{ type: "text", text: output }],
+    details: Object.keys(details).length > 0 ? details : undefined,
+  };
 }
 
 const SENSITIVE_PATTERN = /(KEY|TOKEN|SECRET|AUTH|PASSWORD|CREDENTIAL|PRIVATE)/i;
@@ -152,7 +312,6 @@ function sanitizeEnv(
       out[k] = v;
     }
   }
-  // Ensure DEEPSEEK_API_KEY is explicitly never defined in the guest
   delete out.DEEPSEEK_API_KEY;
   return out;
 }
@@ -180,7 +339,6 @@ function createGondolinBashOps(
           : undefined;
 
       try {
-        // `/bin/bash -lc` for a familiar environment (pipelines, expansions, etc.)
         const proc = vm.exec(["/bin/bash", "-lc", command], {
           cwd: guestCwd,
           signal: ac.signal,
@@ -210,16 +368,19 @@ function createGondolinBashOps(
 export default function (pi: ExtensionAPI) {
   const localCwd = process.cwd();
 
-  const localRead = createReadTool(localCwd);
-  const localWrite = createWriteTool(localCwd);
-  const localEdit = createEditTool(localCwd);
-  const localBash = createBashTool(localCwd);
+  const localRead = createReadTool(GUEST_WORKSPACE);
+  const localWrite = createWriteTool(GUEST_WORKSPACE);
+  const localEdit = createEditTool(GUEST_WORKSPACE);
+  const localBash = createBashTool(GUEST_WORKSPACE);
+  const localGrep = createGrepTool(GUEST_WORKSPACE);
+  const localFind = createFindTool(GUEST_WORKSPACE);
+  const localLs = createLsTool(GUEST_WORKSPACE);
 
   let vm: VM | null = null;
   let vmStarting: Promise<VM> | null = null;
   let guestEnv: Record<string, string> = {};
 
-  async function ensureVm(ctx?: ExtensionContext) {
+  async function ensureVm(ctx?: ExtensionContext): Promise<VM> {
     if (vm) return vm;
     if (vmStarting) return vmStarting;
 
@@ -256,6 +417,9 @@ export default function (pi: ExtensionAPI) {
       });
 
       const created = await VM.create({
+        sandbox: {
+          imagePath: process.env.GONDOLIN_DEFAULT_IMAGE || "custom-dev:latest",
+        },
         httpHooks,
         env,
         vfs: {
@@ -285,7 +449,6 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("session_start", async (_event, ctx) => {
-    // Start eagerly so the user sees errors early (missing qemu, etc.)
     await ensureVm(ctx);
   });
 
@@ -308,7 +471,7 @@ export default function (pi: ExtensionAPI) {
     ...localRead,
     async execute(id, params, signal, onUpdate, ctx) {
       const activeVm = await ensureVm(ctx);
-      const tool = createReadTool(localCwd, {
+      const tool = createReadTool(GUEST_WORKSPACE, {
         operations: createGondolinReadOps(activeVm, localCwd),
       });
       return tool.execute(id, params, signal, onUpdate);
@@ -319,7 +482,7 @@ export default function (pi: ExtensionAPI) {
     ...localWrite,
     async execute(id, params, signal, onUpdate, ctx) {
       const activeVm = await ensureVm(ctx);
-      const tool = createWriteTool(localCwd, {
+      const tool = createWriteTool(GUEST_WORKSPACE, {
         operations: createGondolinWriteOps(activeVm, localCwd),
       });
       return tool.execute(id, params, signal, onUpdate);
@@ -330,7 +493,7 @@ export default function (pi: ExtensionAPI) {
     ...localEdit,
     async execute(id, params, signal, onUpdate, ctx) {
       const activeVm = await ensureVm(ctx);
-      const tool = createEditTool(localCwd, {
+      const tool = createEditTool(GUEST_WORKSPACE, {
         operations: createGondolinEditOps(activeVm, localCwd),
       });
       return tool.execute(id, params, signal, onUpdate);
@@ -341,20 +504,48 @@ export default function (pi: ExtensionAPI) {
     ...localBash,
     async execute(id, params, signal, onUpdate, ctx) {
       const activeVm = await ensureVm(ctx);
-      const tool = createBashTool(localCwd, {
+      const tool = createBashTool(GUEST_WORKSPACE, {
         operations: createGondolinBashOps(activeVm, localCwd, guestEnv),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
   });
 
-  // Run user `!` commands inside the VM too
+  pi.registerTool({
+    ...localLs,
+    async execute(id, params, signal, onUpdate, ctx) {
+      const activeVm = await ensureVm(ctx);
+      const tool = createLsTool(GUEST_WORKSPACE, {
+        operations: createGondolinLsOps(activeVm, localCwd),
+      });
+      return tool.execute(id, params, signal, onUpdate);
+    },
+  });
+
+  pi.registerTool({
+    ...localFind,
+    async execute(id, params, signal, onUpdate, ctx) {
+      const activeVm = await ensureVm(ctx);
+      const tool = createFindTool(GUEST_WORKSPACE, {
+        operations: createGondolinFindOps(activeVm, localCwd),
+      });
+      return tool.execute(id, params, signal, onUpdate);
+    },
+  });
+
+  pi.registerTool({
+    ...localGrep,
+    async execute(_id, params, signal, _onUpdate, ctx) {
+      const activeVm = await ensureVm(ctx);
+      return executeGondolinGrep(activeVm, localCwd, params, signal);
+    },
+  });
+
   pi.on("user_bash", (_event, ctx) => {
     if (!vm) return;
     return { operations: createGondolinBashOps(vm, localCwd, guestEnv) };
   });
 
-  // Replace the CWD line in the system prompt so the model sees /workspace
   pi.on("before_agent_start", async (event, ctx) => {
     await ensureVm(ctx);
     const modified = event.systemPrompt.replace(
@@ -364,7 +555,6 @@ export default function (pi: ExtensionAPI) {
     return { systemPrompt: modified };
   });
 
-  // Register /gondolin slash command for status and restart
   pi.registerCommand("gondolin", {
     description: "Manage Gondolin sandbox (status or reset)",
     getArgumentCompletions: (prefix) =>
@@ -386,7 +576,7 @@ export default function (pi: ExtensionAPI) {
         }
       } else {
         ctx.ui.notify(
-          `Gondolin Sandbox is ACTIVE.\nMounted: ${localCwd} -> ${GUEST_WORKSPACE}\nAllowed hosts: github.com, pypi.org, npmjs.org, crates.io, api.deepseek.com`,
+          `Gondolin Sandbox is ACTIVE.\nMounted: ${localCwd} -> ${GUEST_WORKSPACE}\nAllowed hosts: github.com, pypi.org, npmjs.org, crates.io`,
           "info",
         );
       }
