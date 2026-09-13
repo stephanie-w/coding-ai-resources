@@ -131,6 +131,46 @@ link-persona:
     ln -s "$SRC" "$DEST"
     echo "✓ Linked $DEST -> $SRC"
 
+# Link one or all pi-extensions to ~/.pi/agent/extensions/ (default: all)
+link-extensions ext="all":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="{{ justfile_directory() }}"
+    DEST_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions"
+    mkdir -p "$DEST_DIR"
+
+    link_one() {
+        local name="$1"
+        local src="$ROOT/pi-extensions/$name"
+        local dest="$DEST_DIR/$name"
+        if [ ! -d "$src" ] && [ ! -f "$src" ]; then
+            echo "✗ Extension '$name' not found in $ROOT/pi-extensions" >&2
+            return 1
+        fi
+        if [ -d "$src" ]; then
+            if [ -f "$src/package.json" ] && [ ! -d "$src/node_modules" ]; then
+                echo "Installing dependencies for $name..."
+                (cd "$src" && npm install)
+            fi
+            if [ -L "$dest" ] && [ "$(readlink -f "$dest")" = "$(readlink -f "$src")" ]; then
+                echo "✓ Already linked: $dest -> $src"
+            else
+                ln -sfn "$src" "$dest"
+                echo "✓ Linked $dest -> $src"
+            fi
+        fi
+    }
+
+    if [ "{{ ext }}" = "all" ]; then
+        for d in "$ROOT"/pi-extensions/*/; do
+            [ -d "$d" ] || continue
+            name="$(basename "$d")"
+            link_one "$name"
+        done
+    else
+        link_one "{{ ext }}"
+    fi
+
 # Launch a pi session with the base persona plus zero or more flavor overlays. Usage: just pi [flavor...] [pi args...]
 pi *args:
     #!/usr/bin/env bash

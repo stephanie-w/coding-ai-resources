@@ -6,6 +6,7 @@ self-contained and can be installed on its own.
 - **neovim** : Native Neovim RPC integration. Gives Pi live awareness of active files, cursor positions, unsaved in-memory buffers, and remote command execution.
 - **git-checkpoint** : Manual, durable, reversible git snapshots of the working tree via `/checkpoint` and `/rollback`, stored as refs under `refs/pi/checkpoints/`. Fully decoupled from `/tree` and `/fork`.
 - **bash-guard** : Intercepts agent-issued `bash` tool calls and prompts before destructive commands (main session) or hard-blocks catastrophic ones (subagents).
+- **gondolin** : Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`) inside an isolated Gondolin Linux micro-VM.
 - **prompt-snippets** : Toggleable, per-message prompt fragments (`alt+s` / `/snippets`) that are prepended or appended to your message. Skips slash commands so templates and skills still expand.
 
 ---

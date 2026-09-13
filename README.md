@@ -47,7 +47,12 @@ coding-ai-resources/
 │       ├── core-agent.just     # Language-agnostic inspection tools (search, view, git-diff)
 │       ├── python-uv.just      # Python/uv QA gates (test, lint, fix, typecheck, check)
 │       └── justfile.agent      # Standalone all-in-one agent justfile
-├── pi-extensions/              # TypeScript/JavaScript native extensions for Pi Agent
+├── pi-extensions/              # TypeScript native extensions for Pi Agent
+│   ├── bash-guard/             # Intercepts agent bash calls; prompts before destructive commands
+│   ├── git-checkpoint/         # Manual, durable working tree snapshots (/checkpoint, /rollback)
+│   ├── gondolin/               # Sandboxes execution inside an isolated Linux micro-VM (/gondolin)
+│   ├── neovim/                 # Live Neovim editor context and buffer awareness
+│   └── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
 ├── prompts/                    # Ephemeral task templates and slash commands
 ├── packages/                   # Composable bundles referencing root primitives
 │   └── core/                   # Baseline pack (all general agent skills)
@@ -67,6 +72,9 @@ just install-global
 
 # Make the base persona Pi's global context file (one-time; all sessions)
 just link-persona
+
+# Link all Pi extensions globally into ~/.pi/agent/extensions/
+just link-extensions
 ```
 
 ---
@@ -119,3 +127,4 @@ This launches a dedicated Pi session that:
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |
 | `just pi [flavor...] [args]` | Launch Pi with `agents/base.agent.md` plus zero or more `flavors/<flavor>.md` overlays. |
 | `just link-persona` | One-time: link `agents/base.agent.md` to `~/.pi/agent/AGENTS.md` (global persona). |
+| `just link-extensions [ext]` | Link one or all `pi-extensions/` into `~/.pi/agent/extensions/` (default: `all`). |

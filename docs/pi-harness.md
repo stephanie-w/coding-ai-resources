@@ -176,6 +176,7 @@ layers on top of the global persona.
 
 ```bash
 just link-persona      # global base persona
+just link-extensions   # all pi extensions (gondolin, bash-guard, neovim, git-checkpoint)
 just install-global    # core skills pack
 ```
 
