@@ -9,6 +9,8 @@ self-contained and can be installed on its own.
 - **gondolin** : Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`) inside an isolated Gondolin Linux micro-VM.
 - **prompt-snippets** : Toggleable, per-message prompt fragments (`alt+s` / `/snippets`) that are prepended or appended to your message. Skips slash commands so templates and skills still expand.
 - **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
+- **context-monitor** : Token/context budget indicator — footer badge, `/tokens` breakdown (exact totals + estimated composition), cache efficiency, and overflow surfacing.
+- **pi-repl** : Python eval + inspection against the project's uv environment (`py_eval`, `py_inspect`). Stateless `uv run`, self-gates outside uv projects.
 
 ---
 
