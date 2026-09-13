@@ -48,6 +48,7 @@ coding-ai-resources/
 │       ├── python-uv.just      # Python/uv QA gates (test, lint, fix, typecheck, check)
 │       └── justfile.agent      # Standalone all-in-one agent justfile
 ├── pi-extensions/              # TypeScript native extensions for Pi Agent
+│   ├── ask-user-question/      # Interactive user prompts & choices in Pi TUI (upstream: pi-config)
 │   ├── bash-guard/             # Intercepts agent bash calls; prompts before destructive commands
 │   ├── git-checkpoint/         # Manual, durable working tree snapshots (/checkpoint, /rollback)
 │   ├── gondolin/               # Sandboxes execution inside an isolated Linux micro-VM (/gondolin)

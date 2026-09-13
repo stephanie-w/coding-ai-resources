@@ -1,5 +1,9 @@
 # Prompt Snippets
 
+This extension comes from upstream:
+
+**→ [amosblomqvist/pi-config (extensions/prompt-snippets)](https://github.com/amosblomqvist/pi-config/tree/main/extensions/prompt-snippets)**
+
 Mix-and-match single-purpose prompt rules that are prepended or appended to
 **your message** when you send it. Unlike skills, each snippet is a tiny,
 standalone instruction — toggle exactly the ones you want per message. Unlike

@@ -8,6 +8,7 @@ self-contained and can be installed on its own.
 - **bash-guard** : Intercepts agent-issued `bash` tool calls and prompts before destructive commands (main session) or hard-blocks catastrophic ones (subagents).
 - **gondolin** : Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`) inside an isolated Gondolin Linux micro-VM.
 - **prompt-snippets** : Toggleable, per-message prompt fragments (`alt+s` / `/snippets`) that are prepended or appended to your message. Skips slash commands so templates and skills still expand.
+- **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
 
 ---
 
