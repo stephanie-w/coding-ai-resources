@@ -50,9 +50,11 @@ coding-ai-resources/
 ├── pi-extensions/              # TypeScript native extensions for Pi Agent
 │   ├── ask-user-question/      # Interactive user prompts & choices in Pi TUI (upstream: pi-config)
 │   ├── bash-guard/             # Intercepts agent bash calls; prompts before destructive commands
+│   ├── context-monitor/        # Live footer token & context percentage badge and /tokens command
 │   ├── git-checkpoint/         # Manual, durable working tree snapshots (/checkpoint, /rollback)
 │   ├── gondolin/               # Sandboxes execution inside an isolated Linux micro-VM (/gondolin)
 │   ├── neovim/                 # Live Neovim editor context and buffer awareness
+│   ├── pi-repl/                # Python eval & type introspection against active uv environment
 │   └── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
 ├── prompts/                    # Ephemeral task templates and slash commands
 ├── packages/                   # Composable bundles referencing root primitives
@@ -60,6 +62,46 @@ coding-ai-resources/
 │       └── package.json
 └── justfile                    # Operational automation recipes
 ```
+
+---
+
+## Pi Agent Harness Architecture & Philosophy
+
+This repository implements a **modern, token-defensive, terminal-native harness** for Pi Agent. Instead of relying on monolithic system prompts or heavy agent frameworks, it pairs composable Unix-style primitives with targeted safety and context-management layers:
+
+```text
+┌────────────────────────────────────────────────────────┐
+│ 1. LAYERED PROMPT HIERARCHY                           │
+│    Base Persona (agents/base.agent.md)                 │
+│      ↳ Session Flavors (flavors/*.md)                  │
+│         ↳ On-Demand Skills (skills/*)                  │
+│            ↳ Turn Snippets (pi-extensions/prompt-snippets)│
+├────────────────────────────────────────────────────────┤
+│ 2. TOKEN-DEFENSIVE PLUMBING                           │
+│    justfile.agent (capped view/grep/test filters)      │
+│    context-monitor (live status badge & /tokens)       │
+├────────────────────────────────────────────────────────┤
+│ 3. ENVIRONMENT & SAFETY GUARDS                         │
+│    bash-guard (interactive prompt vs headless block)   │
+│    pi-repl (uv-bound python runtime evaluation)        │
+│    git-checkpoint (clean snapshots & rollbacks)        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Layer 1: Layered Prompt Hierarchy (Additive & Lean)
+* **Base Persona ([`agents/base.agent.md`](agents/base.agent.md))**: Linked globally (`~/.pi/agent/AGENTS.md`). Sets the always-on tone: clear, concise, actionable communication with zero fluff.
+* **Session Flavors ([`flavors/`](flavors/))**: Fixed per-session overlays passed via `just pi <flavor>...` (e.g. `plan`, `rapid`, `python`, `full`) to adapt the agent's posture without touching the base persona.
+* **On-Demand Skills ([`skills/`](skills/))**: Procedural, specialized workflows (e.g. `deep-engineering`, `session-handoff`, `analyze-sessions`) loaded by the agent only when requested.
+* **Turn-Level Snippets ([`prompt-snippets`](pi-extensions/prompt-snippets/))**: Granular, single-message prompt wrappers toggled on the fly via `Alt+S` or `/snippets` (e.g. *Delegate exploration*, *Orchestrator mode*).
+
+### Layer 2: Token-Defensive Plumbing (Context Preservation)
+* **Controlled Discovery & Slices ([`templates/justfiles/justfile.agent`](templates/justfiles/justfile.agent))**: Forbids dumping large raw outputs (`cat`, `pytest`, `find .`). Forces line-capped views, failure-only test reports, and concise linter outputs to preserve the active context window.
+* **Context Monitoring ([`context-monitor`](pi-extensions/context-monitor/))**: Live footer status badge (`ctx: 32k/128k (25%)`) and `/tokens` inspection that enables proactive manual compaction (`/compact`) around 40% before LLM attention degrades.
+
+### Layer 3: Environment & Safety Guards (Surgical Execution)
+* **Shell Interception ([`bash-guard`](pi-extensions/bash-guard/))**: Parses bash tool calls with shell-aware AST. Provides interactive confirmation for risky commands in main sessions, and automatic hard-blocking of catastrophic operations in headless subagents (`PI_SUBAGENT_DEPTH >= 1`).
+* **Python Runtime Inspection ([`pi-repl`](pi-extensions/pi-repl/))**: Evaluates snippets and introspects type signatures directly against the active project's `uv` environment without writing throwaway test files.
+* **Durable Checkpoints ([`git-checkpoint`](pi-extensions/git-checkpoint/))**: Fast working-tree snapshots (`/checkpoint`, `/rollback`) before high-variance multi-file refactors.
 
 ---
 
