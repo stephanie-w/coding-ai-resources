@@ -153,13 +153,13 @@
     - **Lifecycle**: Automatically shuts down child LSP processes on session exit.
 
 - **Backlog & Implementation Tasks**:
-  - [ ] **Phase 1: Neovim LSP Navigation Extensions**
-    - [ ] Implement `nvim_lsp_definition` in `pi-extensions/neovim/`
-    - [ ] Implement `nvim_lsp_references` in `pi-extensions/neovim/`
-    - [ ] Implement `nvim_lsp_symbols` (document and workspace symbols) in `pi-extensions/neovim/`
-    - [ ] Implement `nvim_lsp_call_hierarchy` (incoming/outgoing calls) in `pi-extensions/neovim/`
-    - [ ] Implement `nvim_lsp_hover` (type signature & docstrings) in `pi-extensions/neovim/`
-    - [ ] Add Lua helper scripts in `neovim.ts` for clean formatting and token-efficient responses
+  - [x] **Phase 1: Neovim LSP Navigation Extensions**
+    - [x] Implement `nvim_lsp_definition` in `pi-extensions/neovim/`
+    - [x] Implement `nvim_lsp_references` in `pi-extensions/neovim/`
+    - [x] Implement `nvim_lsp_symbols` (document and workspace symbols) in `pi-extensions/neovim/`
+    - [x] Implement `nvim_lsp_call_hierarchy` (incoming/outgoing calls) in `pi-extensions/neovim/`
+    - [x] Implement `nvim_lsp_hover` (type signature & docstrings) in `pi-extensions/neovim/`
+    - [x] Add Lua helper scripts in `neovim.ts` for clean formatting and token-efficient responses
   - [ ] **Phase 2: Standalone Headless LSP Client**
     - [ ] Create extension directory `pi-extensions/lsp/` with `package.json` manifest
     - [ ] Implement minimal JSON-RPC client over stdio in `index.ts`

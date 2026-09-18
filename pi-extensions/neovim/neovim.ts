@@ -1230,6 +1230,635 @@ async function getBufferStatus(client: NvimClient, absolutePath: string): Promis
 }
 
 // ---------------------------------------------------------------------------
+// 6.5. Neovim LSP RPC helpers (definition, references, symbols, call hierarchy, hover)
+// ---------------------------------------------------------------------------
+
+interface LspLocation {
+	file: string;
+	relative_file: string;
+	start_line: number;
+	start_col: number;
+	end_line: number;
+	end_col: number;
+	preview?: string;
+}
+
+interface LspDefinitionResult {
+	success: boolean;
+	reason?: string;
+	file?: string;
+	relative_file?: string;
+	line?: number;
+	col?: number;
+	definitions?: LspLocation[];
+}
+
+interface LspReferencesResult {
+	success: boolean;
+	reason?: string;
+	file?: string;
+	relative_file?: string;
+	line?: number;
+	col?: number;
+	total?: number;
+	truncated?: boolean;
+	references?: LspLocation[];
+}
+
+interface LspDocumentSymbol {
+	name: string;
+	kind: string;
+	detail?: string;
+	depth?: number;
+	start_line?: number;
+	end_line?: number;
+}
+
+interface LspWorkspaceSymbol {
+	name: string;
+	kind: string;
+	container?: string;
+	location?: LspLocation;
+}
+
+interface LspSymbolsResult {
+	success: boolean;
+	reason?: string;
+	scope?: "document" | "workspace";
+	file?: string;
+	relative_file?: string;
+	query?: string;
+	symbols?: Array<LspDocumentSymbol | LspWorkspaceSymbol>;
+}
+
+interface LspCallHierarchyItem {
+	name: string;
+	kind: string;
+	detail?: string;
+	file: string;
+	relative_file: string;
+	line: number;
+	col: number;
+	preview?: string;
+}
+
+interface LspCallHierarchyResult {
+	success: boolean;
+	reason?: string;
+	root?: {
+		name: string;
+		kind: string;
+		detail?: string;
+		file: string;
+		relative_file: string;
+		line: number;
+		col: number;
+	};
+	incoming?: LspCallHierarchyItem[];
+	outgoing?: LspCallHierarchyItem[];
+}
+
+interface LspHoverResult {
+	success: boolean;
+	reason?: string;
+	file?: string;
+	relative_file?: string;
+	line?: number;
+	col?: number;
+	hover?: string;
+}
+
+const LSP_LUA_PREAMBLE = `
+local SYMBOL_KINDS = {
+  [1] = "File", [2] = "Module", [3] = "Namespace", [4] = "Package", [5] = "Class",
+  [6] = "Method", [7] = "Property", [8] = "Field", [9] = "Constructor", [10] = "Enum",
+  [11] = "Interface", [12] = "Function", [13] = "Variable", [14] = "Constant",
+  [15] = "String", [16] = "Number", [17] = "Boolean", [18] = "Array", [19] = "Object",
+  [20] = "Key", [21] = "Null", [22] = "EnumMember", [23] = "Struct", [24] = "Event",
+  [25] = "Operator", [26] = "TypeParameter"
+}
+
+local function is_code_buffer(b)
+  return vim.api.nvim_buf_is_valid(b) and vim.bo[b].buftype == "" and vim.api.nvim_buf_get_name(b) ~= ""
+end
+
+local function resolve_code_buffer(target_path)
+  local bufnr = -1
+  if target_path and target_path ~= "" then
+    local absolute = vim.fn.fnamemodify(target_path, ":p")
+    bufnr = vim.fn.bufnr(absolute)
+    if bufnr == -1 then
+      for _, candidate in ipairs(vim.api.nvim_list_bufs()) do
+        local candidate_name = vim.api.nvim_buf_get_name(candidate)
+        if candidate_name ~= "" and vim.fn.fnamemodify(candidate_name, ":p") == absolute then
+          bufnr = candidate
+          break
+        end
+      end
+    end
+    if bufnr == -1 and vim.fn.filereadable(absolute) == 1 then
+      bufnr = vim.fn.bufadd(absolute)
+      vim.fn.bufload(bufnr)
+    end
+    local name = bufnr ~= -1 and vim.api.nvim_buf_get_name(bufnr) or absolute
+    return bufnr, name
+  else
+    local current = vim.api.nvim_get_current_buf()
+    if is_code_buffer(current) then
+      bufnr = current
+    else
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local candidate = vim.api.nvim_win_get_buf(win)
+        if is_code_buffer(candidate) then
+          bufnr = candidate
+          break
+        end
+      end
+      if bufnr == -1 then
+        for _, b in ipairs(vim.api.nvim_list_bufs()) do
+          if is_code_buffer(b) then bufnr = b; break end
+        end
+      end
+    end
+    local name = bufnr ~= -1 and vim.api.nvim_buf_get_name(bufnr) or ""
+    return bufnr, name
+  end
+end
+
+local function get_clients_for_buf(b)
+  if vim.lsp.get_clients then
+    return vim.lsp.get_clients({ bufnr = b })
+  elseif vim.lsp.get_active_clients then
+    return vim.lsp.get_active_clients({ bufnr = b })
+  end
+  return {}
+end
+
+local function get_preview_line(file_path, line_nr)
+  if not line_nr or line_nr <= 0 then return "" end
+  local b = vim.fn.bufnr(file_path)
+  if b ~= -1 and vim.api.nvim_buf_is_loaded(b) then
+    local total = vim.api.nvim_buf_line_count(b)
+    if line_nr <= total then
+      local lines = vim.api.nvim_buf_get_lines(b, line_nr - 1, line_nr, false)
+      return lines[1] or ""
+    end
+  end
+  if vim.fn.filereadable(file_path) == 1 then
+    local lines = vim.fn.readfile(file_path, '', line_nr)
+    if #lines >= line_nr then
+      return lines[line_nr] or ""
+    end
+  end
+  return ""
+end
+
+local function normalize_loc(loc)
+  if not loc then return nil end
+  local uri = loc.uri or loc.targetUri
+  local range = loc.range or loc.targetSelectionRange or loc.targetRange
+  if not uri or not range then return nil end
+  local fname = vim.uri_to_fname(uri)
+  local sl = (range.start and range.start.line or 0) + 1
+  local sc = (range.start and range.start.character or 0) + 1
+  local el = (range["end"] and range["end"].line or 0) + 1
+  local ec = (range["end"] and range["end"].character or 0) + 1
+  local preview = get_preview_line(fname, sl)
+  return {
+    file = fname,
+    relative_file = vim.fn.fnamemodify(fname, ":~:."),
+    start_line = sl,
+    start_col = sc,
+    end_line = el,
+    end_col = ec,
+    preview = preview:gsub("^%s+", ""):gsub("%s+$", ""),
+  }
+end
+`;
+
+function buildLspDefinitionChunk(target?: string, line?: number, col?: number): string {
+	return `
+${LSP_LUA_PREAMBLE}
+local target = ${target ? toLuaString(target) : "nil"}
+local line = ${line !== undefined ? line : "nil"}
+local col = ${col !== undefined ? col : "nil"}
+
+local bufnr, path = resolve_code_buffer(target)
+if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+  return { success = false, reason = "No valid code buffer found in Neovim" }
+end
+
+local clients = get_clients_for_buf(bufnr)
+if #clients == 0 then
+  return { success = false, reason = "No LSP clients attached to buffer " .. path }
+end
+
+local line_idx = math.max(0, (line or 1) - 1)
+local col_idx = math.max(0, (col or 1) - 1)
+local params = {
+  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+  position = { line = line_idx, character = col_idx },
+}
+
+local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/definition", params, 4000)
+if not responses or vim.tbl_isempty(responses) then
+  responses = vim.lsp.buf_request_sync(bufnr, "textDocument/typeDefinition", params, 3000)
+end
+if not responses or vim.tbl_isempty(responses) then
+  return { success = false, reason = "LSP definition request timed out or returned no responses" }
+end
+
+local definitions = {}
+for client_id, response in pairs(responses) do
+  if response.result then
+    local res = response.result
+    if type(res) == "table" then
+      if res.uri or res.targetUri then
+        local item = normalize_loc(res)
+        if item then table.insert(definitions, item) end
+      else
+        for _, loc in ipairs(res) do
+          local item = normalize_loc(loc)
+          if item then table.insert(definitions, item) end
+        end
+      end
+    end
+  end
+end
+
+return {
+  success = true,
+  file = path,
+  relative_file = vim.fn.fnamemodify(path, ":~:."),
+  line = line or 1,
+  col = col or 1,
+  definitions = definitions,
+}
+`;
+}
+
+function buildLspReferencesChunk(
+	target?: string,
+	line?: number,
+	col?: number,
+	includeDeclaration = true,
+	limit = 50,
+): string {
+	return `
+${LSP_LUA_PREAMBLE}
+local target = ${target ? toLuaString(target) : "nil"}
+local line = ${line !== undefined ? line : "nil"}
+local col = ${col !== undefined ? col : "nil"}
+local include_decl = ${includeDeclaration ? "true" : "false"}
+local max_limit = ${limit > 0 ? limit : 50}
+
+local bufnr, path = resolve_code_buffer(target)
+if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+  return { success = false, reason = "No valid code buffer found in Neovim" }
+end
+
+local clients = get_clients_for_buf(bufnr)
+if #clients == 0 then
+  return { success = false, reason = "No LSP clients attached to buffer " .. path }
+end
+
+local line_idx = math.max(0, (line or 1) - 1)
+local col_idx = math.max(0, (col or 1) - 1)
+local params = {
+  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+  position = { line = line_idx, character = col_idx },
+  context = { includeDeclaration = include_decl },
+}
+
+local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/references", params, 5000)
+if not responses or vim.tbl_isempty(responses) then
+  return { success = false, reason = "LSP references request timed out or returned no responses" }
+end
+
+local refs = {}
+local count = 0
+local truncated = false
+
+for client_id, response in pairs(responses) do
+  if response.result and type(response.result) == "table" then
+    for _, loc in ipairs(response.result) do
+      count = count + 1
+      if #refs < max_limit then
+        local item = normalize_loc(loc)
+        if item then table.insert(refs, item) end
+      else
+        truncated = true
+      end
+    end
+  end
+end
+
+return {
+  success = true,
+  file = path,
+  relative_file = vim.fn.fnamemodify(path, ":~:."),
+  line = line or 1,
+  col = col or 1,
+  total = count,
+  truncated = truncated,
+  references = refs,
+}
+`;
+}
+
+function buildLspSymbolsChunk(target?: string, query?: string, scope: "document" | "workspace" = "document"): string {
+	return `
+${LSP_LUA_PREAMBLE}
+local target = ${target ? toLuaString(target) : "nil"}
+local query = ${query ? toLuaString(query) : "nil"}
+local scope = ${toLuaString(scope)}
+
+local bufnr, path = resolve_code_buffer(target)
+local clients = bufnr ~= -1 and get_clients_for_buf(bufnr) or (vim.lsp.get_clients and vim.lsp.get_clients() or vim.lsp.get_active_clients())
+if #clients == 0 then
+  return { success = false, reason = "No LSP clients active in Neovim" }
+end
+
+if scope == "workspace" or (query and query ~= "") then
+  local client_responses = vim.lsp.buf_request_sync(bufnr ~= -1 and bufnr or 0, "workspace/symbol", { query = query or "" }, 5000)
+  if not client_responses or vim.tbl_isempty(client_responses) then
+    return { success = false, reason = "No workspace symbols returned" }
+  end
+  local symbols = {}
+  for _, resp in pairs(client_responses) do
+    if resp.result and type(resp.result) == "table" then
+      for _, sym in ipairs(resp.result) do
+        local kind = SYMBOL_KINDS[sym.kind] or tostring(sym.kind)
+        local loc = normalize_loc(sym.location)
+        table.insert(symbols, {
+          name = sym.name,
+          kind = kind,
+          container = sym.containerName,
+          location = loc,
+        })
+        if #symbols >= 100 then break end
+      end
+    end
+  end
+  return {
+    success = true,
+    scope = "workspace",
+    query = query or "",
+    symbols = symbols,
+  }
+else
+  if bufnr == -1 then
+    return { success = false, reason = "No target buffer specified for document symbols" }
+  end
+  local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
+  local client_responses = vim.lsp.buf_request_sync(bufnr, "textDocument/documentSymbol", params, 4000)
+  if not client_responses or vim.tbl_isempty(client_responses) then
+    return { success = false, reason = "No document symbols returned for " .. path }
+  end
+  local function parse_hierarchy(syms, depth)
+    local items = {}
+    for _, sym in ipairs(syms) do
+      local kind = SYMBOL_KINDS[sym.kind] or tostring(sym.kind)
+      local start_line = (sym.selectionRange and sym.selectionRange.start.line or (sym.range and sym.range.start.line) or (sym.location and sym.location.range and sym.location.range.start.line) or 0) + 1
+      local end_line = (sym.range and sym.range["end"].line or (sym.location and sym.location.range and sym.location.range["end"].line) or start_line - 1) + 1
+      local entry = {
+        name = sym.name,
+        kind = kind,
+        detail = sym.detail,
+        depth = depth,
+        start_line = start_line,
+        end_line = end_line,
+      }
+      table.insert(items, entry)
+      if sym.children and #sym.children > 0 then
+        local children = parse_hierarchy(sym.children, depth + 1)
+        for _, c in ipairs(children) do table.insert(items, c) end
+      end
+    end
+    return items
+  end
+
+  local all_symbols = {}
+  for _, resp in pairs(client_responses) do
+    if resp.result and type(resp.result) == "table" then
+      local parsed = parse_hierarchy(resp.result, 0)
+      for _, p in ipairs(parsed) do table.insert(all_symbols, p) end
+    end
+  end
+
+  return {
+    success = true,
+    scope = "document",
+    file = path,
+    relative_file = vim.fn.fnamemodify(path, ":~:."),
+    symbols = all_symbols,
+  }
+end
+`;
+}
+
+function buildLspCallHierarchyChunk(
+	target?: string,
+	line?: number,
+	col?: number,
+	direction: "incoming" | "outgoing" | "both" = "both",
+): string {
+	return `
+${LSP_LUA_PREAMBLE}
+local target = ${target ? toLuaString(target) : "nil"}
+local line = ${line !== undefined ? line : "nil"}
+local col = ${col !== undefined ? col : "nil"}
+local dir = ${toLuaString(direction)}
+
+local bufnr, path = resolve_code_buffer(target)
+if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+  return { success = false, reason = "No valid code buffer found in Neovim" }
+end
+
+local clients = get_clients_for_buf(bufnr)
+if #clients == 0 then
+  return { success = false, reason = "No LSP clients attached to buffer " .. path }
+end
+
+local line_idx = math.max(0, (line or 1) - 1)
+local col_idx = math.max(0, (col or 1) - 1)
+local params = {
+  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+  position = { line = line_idx, character = col_idx },
+}
+
+local prep_responses = vim.lsp.buf_request_sync(bufnr, "textDocument/prepareCallHierarchy", params, 4000)
+if not prep_responses or vim.tbl_isempty(prep_responses) then
+  return { success = false, reason = "Call hierarchy not supported by LSP server or no symbol found at position" }
+end
+
+local target_item = nil
+for _, resp in pairs(prep_responses) do
+  if resp.result and type(resp.result) == "table" and #resp.result > 0 then
+    target_item = resp.result[1]
+    break
+  end
+end
+
+if not target_item then
+  return { success = false, reason = "No call hierarchy root symbol found at position" }
+end
+
+local incoming = {}
+local outgoing = {}
+
+if dir == "incoming" or dir == "both" then
+  local inc_resp = vim.lsp.buf_request_sync(bufnr, "callHierarchy/incomingCalls", { item = target_item }, 4000)
+  if inc_resp then
+    for _, resp in pairs(inc_resp) do
+      if resp.result and type(resp.result) == "table" then
+        for _, call in ipairs(resp.result) do
+          local caller = call.from
+          local uri = caller.uri
+          local fname = uri and vim.uri_to_fname(uri) or ""
+          local r = caller.selectionRange or caller.range
+          local sl = (r and r.start and r.start.line or 0) + 1
+          local sc = (r and r.start and r.start.character or 0) + 1
+          local preview = get_preview_line(fname, sl)
+          table.insert(incoming, {
+            name = caller.name,
+            kind = SYMBOL_KINDS[caller.kind] or tostring(caller.kind),
+            detail = caller.detail,
+            file = fname,
+            relative_file = vim.fn.fnamemodify(fname, ":~:."),
+            line = sl,
+            col = sc,
+            preview = preview:gsub("^%s+", ""):gsub("%s+$", ""),
+          })
+        end
+      end
+    end
+  end
+end
+
+if dir == "outgoing" or dir == "both" then
+  local out_resp = vim.lsp.buf_request_sync(bufnr, "callHierarchy/outgoingCalls", { item = target_item }, 4000)
+  if out_resp then
+    for _, resp in pairs(out_resp) do
+      if resp.result and type(resp.result) == "table" then
+        for _, call in ipairs(resp.result) do
+          local callee = call.to
+          local uri = callee.uri
+          local fname = uri and vim.uri_to_fname(uri) or ""
+          local r = callee.selectionRange or callee.range
+          local sl = (r and r.start and r.start.line or 0) + 1
+          local sc = (r and r.start and r.start.character or 0) + 1
+          local preview = get_preview_line(fname, sl)
+          table.insert(outgoing, {
+            name = callee.name,
+            kind = SYMBOL_KINDS[callee.kind] or tostring(callee.kind),
+            detail = callee.detail,
+            file = fname,
+            relative_file = vim.fn.fnamemodify(fname, ":~:."),
+            line = sl,
+            col = sc,
+            preview = preview:gsub("^%s+", ""):gsub("%s+$", ""),
+          })
+        end
+      end
+    end
+  end
+end
+
+local root_range = target_item.selectionRange or target_item.range
+local root_fname = target_item.uri and vim.uri_to_fname(target_item.uri) or path
+return {
+  success = true,
+  root = {
+    name = target_item.name,
+    kind = SYMBOL_KINDS[target_item.kind] or tostring(target_item.kind),
+    detail = target_item.detail,
+    file = root_fname,
+    relative_file = vim.fn.fnamemodify(root_fname, ":~:."),
+    line = (root_range and root_range.start and root_range.start.line or 0) + 1,
+    col = (root_range and root_range.start and root_range.start.character or 0) + 1,
+  },
+  incoming = incoming,
+  outgoing = outgoing,
+}
+`;
+}
+
+function buildLspHoverChunk(target?: string, line?: number, col?: number): string {
+	return `
+${LSP_LUA_PREAMBLE}
+local target = ${target ? toLuaString(target) : "nil"}
+local line = ${line !== undefined ? line : "nil"}
+local col = ${col !== undefined ? col : "nil"}
+
+local bufnr, path = resolve_code_buffer(target)
+if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+  return { success = false, reason = "No valid code buffer found in Neovim" }
+end
+
+local clients = get_clients_for_buf(bufnr)
+if #clients == 0 then
+  return { success = false, reason = "No LSP clients attached to buffer " .. path }
+end
+
+local line_idx = math.max(0, (line or 1) - 1)
+local col_idx = math.max(0, (col or 1) - 1)
+local params = {
+  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+  position = { line = line_idx, character = col_idx },
+}
+
+local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", params, 4000)
+if not responses or vim.tbl_isempty(responses) then
+  return { success = false, reason = "No hover information returned" }
+end
+
+local function extract_text(contents)
+  if not contents then return nil end
+  if type(contents) == "string" then return contents end
+  if type(contents) == "table" then
+    if contents.kind and contents.value then
+      return contents.value
+    elseif contents.language and contents.value then
+      return "\`\`\`" .. contents.language .. "\\n" .. contents.value .. "\\n\`\`\`"
+    elseif #contents > 0 then
+      local parts = {}
+      for _, c in ipairs(contents) do
+        local s = extract_text(c)
+        if s and s ~= "" then table.insert(parts, s) end
+      end
+      return table.concat(parts, "\\n\\n")
+    end
+  end
+  return nil
+end
+
+local hovers = {}
+for client_id, resp in pairs(responses) do
+  if resp.result and resp.result.contents then
+    local txt = extract_text(resp.result.contents)
+    if txt and txt ~= "" then
+      table.insert(hovers, txt)
+    end
+  end
+end
+
+if #hovers == 0 then
+  return { success = false, reason = "Empty hover response" }
+end
+
+return {
+  success = true,
+  file = path,
+  relative_file = vim.fn.fnamemodify(path, ":~:."),
+  line = line or 1,
+  col = col or 1,
+  hover = table.concat(hovers, "\\n\\n---\\n\\n"),
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
 // 7. Neovim-side Lua bindings
 // ---------------------------------------------------------------------------
 //
@@ -1389,6 +2018,52 @@ const diagnosticsParameters = Type.Object({
 			description: "Minimum severity to include (default: all).",
 		}),
 	),
+});
+
+const lspDefinitionParameters = Type.Object({
+	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
+	line: Type.Number({ description: "1-indexed line number of the symbol." }),
+	col: Type.Number({ description: "1-indexed column number of the symbol." }),
+});
+
+const lspReferencesParameters = Type.Object({
+	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
+	line: Type.Number({ description: "1-indexed line number of the symbol." }),
+	col: Type.Number({ description: "1-indexed column number of the symbol." }),
+	include_declaration: Type.Optional(
+		Type.Boolean({ description: "Include declaration in references (default: true)." }),
+	),
+	limit: Type.Optional(Type.Number({ description: "Max references to return (default: 50)." })),
+});
+
+const lspSymbolsParameters = Type.Object({
+	path: Type.Optional(
+		Type.String({ description: "File path for document symbols. Defaults to active buffer if scope is document." }),
+	),
+	query: Type.Optional(Type.String({ description: "Search query for workspace symbol search." })),
+	scope: Type.Optional(
+		StringEnum(["document", "workspace"] as const, {
+			description:
+				"Symbol scope: document (file outline) or workspace (search symbols across project). Default: document.",
+		}),
+	),
+});
+
+const lspCallHierarchyParameters = Type.Object({
+	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
+	line: Type.Number({ description: "1-indexed line number of the target function/method." }),
+	col: Type.Number({ description: "1-indexed column number of the target function/method." }),
+	direction: Type.Optional(
+		StringEnum(["incoming", "outgoing", "both"] as const, {
+			description: "Call hierarchy direction: incoming (callers), outgoing (callees), or both (default: both).",
+		}),
+	),
+});
+
+const lspHoverParameters = Type.Object({
+	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
+	line: Type.Number({ description: "1-indexed line number of the symbol." }),
+	col: Type.Number({ description: "1-indexed column number of the symbol." }),
 });
 
 function textResult(text: string, details: unknown): AgentToolResult<unknown> {
@@ -1591,6 +2266,228 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 					cursorLine: context.cursor_line,
 					diagnostics,
 				});
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "nvim_lsp_definition",
+		label: "Neovim LSP Definition",
+		description:
+			"Jump to the definition or declaration of a symbol using Neovim's active LSP client. Returns exact file, line, column, and preview snippet.",
+		promptSnippet: "Go to symbol definition via Neovim LSP",
+		promptGuidelines: [
+			"Use nvim_lsp_definition to find exact definitions and implementations across workspace files and third-party dependencies.",
+		],
+		parameters: lspDefinitionParameters,
+		async execute(_toolCallId, params) {
+			try {
+				const result = await client.execJson<LspDefinitionResult>(
+					buildLspDefinitionChunk(params.path, params.line, params.col),
+				);
+				if (!result.success) {
+					return textResult(`LSP Definition: ${result.reason ?? "No definition found."}`, { result });
+				}
+				if (!result.definitions || result.definitions.length === 0) {
+					return textResult(
+						`No definition found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${params.line}:${params.col}.`,
+						{ result },
+					);
+				}
+				const lines = [`### LSP Definition (${result.definitions.length} found)`];
+				for (const def of result.definitions) {
+					lines.push(`- **\`${def.relative_file || def.file}:${def.start_line}:${def.start_col}\`**`);
+					if (def.preview) {
+						lines.push(`  \`${def.preview}\``);
+					}
+				}
+				return textResult(lines.join("\n"), { result });
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "nvim_lsp_references",
+		label: "Neovim LSP References",
+		description:
+			"Find all usages, references, and call sites of a symbol across the project using Neovim's active LSP client.",
+		promptSnippet: "Find symbol references across the workspace via Neovim LSP",
+		promptGuidelines: [
+			"Use nvim_lsp_references before refactoring functions, classes, or variables to ensure all call sites are updated safely.",
+		],
+		parameters: lspReferencesParameters,
+		async execute(_toolCallId, params) {
+			try {
+				const result = await client.execJson<LspReferencesResult>(
+					buildLspReferencesChunk(
+						params.path,
+						params.line,
+						params.col,
+						params.include_declaration,
+						params.limit,
+					),
+				);
+				if (!result.success) {
+					return textResult(`LSP References: ${result.reason ?? "No references found."}`, { result });
+				}
+				if (!result.references || result.references.length === 0) {
+					return textResult(
+						`No references found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${params.line}:${params.col}.`,
+						{ result },
+					);
+				}
+				const totalStr = result.total !== undefined ? `${result.total} found` : `${result.references.length} found`;
+				const truncStr = result.truncated ? `, showing first ${result.references.length}` : "";
+				const lines = [`### LSP References (${totalStr}${truncStr})`];
+				for (const ref of result.references) {
+					const preview = ref.preview ? `: \`${ref.preview}\`` : "";
+					lines.push(`- \`${ref.relative_file || ref.file}:${ref.start_line}:${ref.start_col}\`${preview}`);
+				}
+				return textResult(lines.join("\n"), { result });
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "nvim_lsp_symbols",
+		label: "Neovim LSP Symbols",
+		description:
+			"Retrieve structural symbol outlines (classes, methods, functions, types) for a file (scope: document) or search symbols across the workspace (scope: workspace) via Neovim's LSP.",
+		promptSnippet: "List document symbol outline or search workspace symbols via Neovim LSP",
+		promptGuidelines: [
+			"Use nvim_lsp_symbols to inspect the structure of a file or search for symbols across the workspace without parsing raw files.",
+		],
+		parameters: lspSymbolsParameters,
+		async execute(_toolCallId, params) {
+			try {
+				const scope = params.scope ?? "document";
+				const result = await client.execJson<LspSymbolsResult>(
+					buildLspSymbolsChunk(params.path, params.query, scope),
+				);
+				if (!result.success) {
+					return textResult(`LSP Symbols: ${result.reason ?? "No symbols found."}`, { result });
+				}
+				if (!result.symbols || result.symbols.length === 0) {
+					return textResult(
+						scope === "workspace"
+							? `No workspace symbols matching query "${params.query ?? ""}".`
+							: `No document symbols found for ${result.relative_file || result.file || params.path || "buffer"}.`,
+						{ result },
+					);
+				}
+				if (result.scope === "workspace") {
+					const lines = [`### Workspace Symbols: query="${result.query ?? ""}" (${result.symbols.length} found)`];
+					for (const sym of result.symbols as LspWorkspaceSymbol[]) {
+						const loc = sym.location
+							? ` in \`${sym.location.relative_file || sym.location.file}:${sym.location.start_line}\``
+							: "";
+						const container = sym.container ? ` (${sym.container})` : "";
+						lines.push(`- [${sym.kind}] \`${sym.name}\`${container}${loc}`);
+					}
+					return textResult(lines.join("\n"), { result });
+				} else {
+					const lines = [
+						`### Document Symbols: \`${result.relative_file || result.file || params.path || "buffer"}\` (${result.symbols.length} symbols)`,
+					];
+					for (const sym of result.symbols as LspDocumentSymbol[]) {
+						const indent = "  ".repeat(sym.depth || 0);
+						const range = sym.start_line
+							? ` (lines ${sym.start_line}${sym.end_line && sym.end_line !== sym.start_line ? `-${sym.end_line}` : ""})`
+							: "";
+						const detail = sym.detail ? ` — *${sym.detail}*` : "";
+						lines.push(`${indent}- [${sym.kind}] \`${sym.name}\`${detail}${range}`);
+					}
+					return textResult(lines.join("\n"), { result });
+				}
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "nvim_lsp_call_hierarchy",
+		label: "Neovim LSP Call Hierarchy",
+		description:
+			"Inspect incoming callers (functions that call this) and outgoing callees (functions called by this) for a function or method using Neovim's LSP.",
+		promptSnippet: "Inspect incoming/outgoing call hierarchy of a function via Neovim LSP",
+		promptGuidelines: [
+			"Use nvim_lsp_call_hierarchy to trace execution flow and understand how a function is used across the codebase.",
+		],
+		parameters: lspCallHierarchyParameters,
+		async execute(_toolCallId, params) {
+			try {
+				const direction = params.direction ?? "both";
+				const result = await client.execJson<LspCallHierarchyResult>(
+					buildLspCallHierarchyChunk(params.path, params.line, params.col, direction),
+				);
+				if (!result.success || !result.root) {
+					return textResult(`LSP Call Hierarchy: ${result.reason ?? "Call hierarchy not available."}`, { result });
+				}
+				const root = result.root;
+				const lines = [
+					`### Call Hierarchy: \`${root.name}\` [${root.kind}] (\`${root.relative_file || root.file}:${root.line}\`)`,
+				];
+				if (result.incoming && result.incoming.length > 0) {
+					lines.push("");
+					lines.push(`#### Incoming Calls (Callers — ${result.incoming.length}):`);
+					for (const call of result.incoming) {
+						const preview = call.preview ? ` \`${call.preview}\`` : "";
+						lines.push(`- [${call.kind}] \`${call.name}\` in \`${call.relative_file || call.file}:${call.line}\`${preview}`);
+					}
+				} else if (direction === "incoming" || direction === "both") {
+					lines.push("");
+					lines.push("*No incoming callers found.*");
+				}
+
+				if (result.outgoing && result.outgoing.length > 0) {
+					lines.push("");
+					lines.push(`#### Outgoing Calls (Callees — ${result.outgoing.length}):`);
+					for (const call of result.outgoing) {
+						const preview = call.preview ? ` \`${call.preview}\`` : "";
+						lines.push(`- [${call.kind}] \`${call.name}\` in \`${call.relative_file || call.file}:${call.line}\`${preview}`);
+					}
+				} else if (direction === "outgoing" || direction === "both") {
+					lines.push("");
+					lines.push("*No outgoing callees found.*");
+				}
+				return textResult(lines.join("\n"), { result });
+			} catch (error) {
+				return errorResult(error);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "nvim_lsp_hover",
+		label: "Neovim LSP Hover",
+		description:
+			"Get LSP hover information (type signatures, inferred types, docstrings) for a symbol at a given line and column via Neovim's LSP.",
+		promptSnippet: "Inspect type signatures and docstrings at cursor via Neovim LSP",
+		promptGuidelines: [
+			"Use nvim_lsp_hover to check exact type annotations, return types, and docstrings of unfamiliar functions or variables.",
+		],
+		parameters: lspHoverParameters,
+		async execute(_toolCallId, params) {
+			try {
+				const result = await client.execJson<LspHoverResult>(
+					buildLspHoverChunk(params.path, params.line, params.col),
+				);
+				if (!result.success || !result.hover) {
+					return textResult(`LSP Hover: ${result.reason ?? "No hover information available."}`, { result });
+				}
+				const lines = [
+					`### LSP Hover (\`${result.relative_file || result.file || params.path || "buffer"}:${result.line}:${result.col}\`)`,
+					"",
+					result.hover,
+				];
+				return textResult(lines.join("\n"), { result });
 			} catch (error) {
 				return errorResult(error);
 			}

@@ -72,9 +72,16 @@ TypeScript file — no `npm install`, no build step, no Neovim config required.
 | `nvim_read_buffer` | `target?` | Live in-memory buffer contents, including unsaved edits. Defaults to the active code buffer. |
 | `nvim_command` | `command`, `buffer?` | Run an Ex command against the user's active code buffer (not pi's terminal). Pass `buffer` (path/number) to target another file. `:edit!`/`:checktime` are refused when the buffer is dirty. |
 | `nvim_diagnostics` | `scope?` (`line`/`buffer`), `severity?` (`error`/`warning`/`all`) | LSP diagnostics for the cursor line or the whole buffer. |
+| `nvim_lsp_definition` | `path?`, `line`, `col` | Go to symbol definition or declaration using Neovim's active LSP client. Returns file location and preview snippet. |
+| `nvim_lsp_references` | `path?`, `line`, `col`, `include_declaration?`, `limit?` | Find all usages and call sites across the project using Neovim's active LSP client. |
+| `nvim_lsp_symbols` | `path?`, `query?`, `scope?` (`document`/`workspace`) | Retrieve structural symbol outline for a file (classes, methods, functions) or search symbols across the workspace. |
+| `nvim_lsp_call_hierarchy` | `path?`, `line`, `col`, `direction?` (`incoming`/`outgoing`/`both`) | Inspect incoming callers (who calls this) and outgoing callees (what this calls) for a function/method. |
+| `nvim_lsp_hover` | `path?`, `line`, `col` | Inspect type signatures, inferred types, and docstrings for a symbol at cursor position. |
 
 The context tool automatically ignores pi's own terminal buffer and reports the
-code buffer you were last using in the current tabpage.
+code buffer you were last using in the current tabpage. All LSP tools query the
+active language servers attached to the buffer in Neovim (`vim.lsp.buf_request_sync`),
+sharing warm indices and unsaved buffer states with zero extra memory overhead.
 
 ---
 
