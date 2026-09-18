@@ -160,14 +160,14 @@
     - [x] Implement `nvim_lsp_call_hierarchy` (incoming/outgoing calls) in `pi-extensions/neovim/`
     - [x] Implement `nvim_lsp_hover` (type signature & docstrings) in `pi-extensions/neovim/`
     - [x] Add Lua helper scripts in `neovim.ts` for clean formatting and token-efficient responses
-  - [ ] **Phase 2: Standalone Headless LSP Client**
-    - [ ] Create extension directory `pi-extensions/lsp/` with `package.json` manifest
-    - [ ] Implement minimal JSON-RPC client over stdio in `index.ts`
-    - [ ] Implement language server discovery logic (Python/`uv`, Node/`npx`, Rust/`cargo`, Go)
-    - [ ] Implement lazy process spawning, `initialize` handshake, and graceful teardown
-    - [ ] Implement buffer sync via `tool_result` event hooks (`didOpen`, `didChange`, `didSave`)
-  - [ ] **Phase 3: Unified Router & Tool Aliasing**
-    - [ ] Unify tool registration so LLM accesses `lsp_*` seamlessly across both environments
-    - [ ] Add `/lsp` slash command (display active backend, connected servers, root URI, status)
-    - [ ] Add `README.md` documentation and setup guides
+  - [x] **Phase 2: Standalone Headless LSP Client**
+    - [x] Create extension directory `pi-extensions/lsp/` with `package.json` manifest
+    - [x] Implement minimal JSON-RPC client over stdio in `index.ts`
+    - [x] Implement language server discovery logic (Python/`uv`, Node/`npx`, Rust/`cargo`, Go)
+    - [x] Implement lazy process spawning, `initialize` handshake, and graceful teardown
+    - [x] Implement buffer sync via `tool_result` event hooks (`didOpen`, `didChange`, `didSave`)
+  - [x] **Phase 3: Unified Router & Tool Aliasing**
+    - [x] Unify tool registration so LLM accesses `lsp_*` seamlessly across both environments
+    - [x] Add `/lsp` slash command (display active backend, connected servers, root URI, status)
+    - [x] Add `README.md` documentation and setup guides
 

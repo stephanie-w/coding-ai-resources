@@ -1338,6 +1338,15 @@ local SYMBOL_KINDS = {
   [25] = "Operator", [26] = "TypeParameter"
 }
 
+local COMMON_KEYWORDS = {
+  ["function"] = true, ["local"] = true, ["return"] = true, ["if"] = true, ["then"] = true,
+  ["else"] = true, ["elseif"] = true, ["end"] = true, ["for"] = true, ["while"] = true,
+  ["do"] = true, ["def"] = true, ["async"] = true, ["await"] = true, ["class"] = true,
+  ["import"] = true, ["from"] = true, ["export"] = true, ["const"] = true, ["let"] = true,
+  ["var"] = true, ["fn"] = true, ["pub"] = true, ["struct"] = true, ["enum"] = true,
+  ["self"] = true, ["this"] = true,
+}
+
 local function is_code_buffer(b)
   return vim.api.nvim_buf_is_valid(b) and vim.bo[b].buftype == "" and vim.api.nvim_buf_get_name(b) ~= ""
 end
@@ -1383,6 +1392,37 @@ local function resolve_code_buffer(target_path)
     local name = bufnr ~= -1 and vim.api.nvim_buf_get_name(bufnr) or ""
     return bufnr, name
   end
+end
+
+local function resolve_pos(bufnr, line, col, symbol)
+  local total = vim.api.nvim_buf_line_count(bufnr)
+  if symbol and symbol ~= "" then
+    if line and line >= 1 and line <= total then
+      local ltext = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1] or ""
+      local s, _ = ltext:find(symbol, 1, true)
+      if s then return line, s, { s } end
+    end
+    for i = 1, total do
+      local ltext = vim.api.nvim_buf_get_lines(bufnr, i - 1, i, false)[1] or ""
+      local s, _ = ltext:find(symbol, 1, true)
+      if s then return i, s, { s } end
+    end
+  end
+  local resolved_line = line or 1
+  local resolved_col = col or 1
+  local alt_cols = {}
+  if resolved_line >= 1 and resolved_line <= total then
+    local ltext = vim.api.nvim_buf_get_lines(bufnr, resolved_line - 1, resolved_line, false)[1] or ""
+    for w, ident in ltext:gmatch("()([%a_][%w_]*)") do
+      if not COMMON_KEYWORDS[ident] then
+        table.insert(alt_cols, w)
+      end
+    end
+    if not col and #alt_cols > 0 then
+      resolved_col = alt_cols[1]
+    end
+  end
+  return resolved_line, resolved_col, alt_cols
 end
 
 local function get_clients_for_buf(b)
@@ -1436,12 +1476,13 @@ local function normalize_loc(loc)
 end
 `;
 
-function buildLspDefinitionChunk(target?: string, line?: number, col?: number): string {
+function buildLspDefinitionChunk(target?: string, line?: number, col?: number, symbol?: string): string {
 	return `
 ${LSP_LUA_PREAMBLE}
 local target = ${target ? toLuaString(target) : "nil"}
 local line = ${line !== undefined ? line : "nil"}
 local col = ${col !== undefined ? col : "nil"}
+local symbol = ${symbol ? toLuaString(symbol) : "nil"}
 
 local bufnr, path = resolve_code_buffer(target)
 if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -1453,46 +1494,59 @@ if #clients == 0 then
   return { success = false, reason = "No LSP clients attached to buffer " .. path }
 end
 
-local line_idx = math.max(0, (line or 1) - 1)
-local col_idx = math.max(0, (col or 1) - 1)
-local params = {
-  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
-  position = { line = line_idx, character = col_idx },
-}
+local res_line, res_col, alt_cols = resolve_pos(bufnr, line, col, symbol)
 
-local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/definition", params, 4000)
-if not responses or vim.tbl_isempty(responses) then
-  responses = vim.lsp.buf_request_sync(bufnr, "textDocument/typeDefinition", params, 3000)
-end
-if not responses or vim.tbl_isempty(responses) then
-  return { success = false, reason = "LSP definition request timed out or returned no responses" }
-end
-
-local definitions = {}
-for client_id, response in pairs(responses) do
-  if response.result then
-    local res = response.result
-    if type(res) == "table" then
-      if res.uri or res.targetUri then
-        local item = normalize_loc(res)
-        if item then table.insert(definitions, item) end
-      else
-        for _, loc in ipairs(res) do
-          local item = normalize_loc(loc)
-          if item then table.insert(definitions, item) end
+local function probe(l, c)
+  local p = {
+    textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+    position = { line = math.max(0, l - 1), character = math.max(0, c - 1) },
+  }
+  local resp = vim.lsp.buf_request_sync(bufnr, "textDocument/definition", p, 4000)
+  if not resp or vim.tbl_isempty(resp) then
+    resp = vim.lsp.buf_request_sync(bufnr, "textDocument/typeDefinition", p, 3000)
+  end
+  if not resp or vim.tbl_isempty(resp) then return nil end
+  local defs = {}
+  for _, r in pairs(resp) do
+    if r.result then
+      if type(r.result) == "table" then
+        if r.result.uri or r.result.targetUri then
+          local item = normalize_loc(r.result)
+          if item then table.insert(defs, item) end
+        else
+          for _, loc in ipairs(r.result) do
+            local item = normalize_loc(loc)
+            if item then table.insert(defs, item) end
+          end
         end
       end
     end
   end
+  return #defs > 0 and defs or nil
+end
+
+local defs = probe(res_line, res_col)
+local final_col = res_col
+if not defs then
+  for _, ac in ipairs(alt_cols) do
+    if ac ~= res_col then
+      defs = probe(res_line, ac)
+      if defs then final_col = ac; break end
+    end
+  end
+end
+
+if not defs then
+  return { success = false, reason = "LSP definition request returned no responses", line = res_line, col = res_col }
 end
 
 return {
   success = true,
   file = path,
   relative_file = vim.fn.fnamemodify(path, ":~:."),
-  line = line or 1,
-  col = col or 1,
-  definitions = definitions,
+  line = res_line,
+  col = final_col,
+  definitions = defs,
 }
 `;
 }
@@ -1501,6 +1555,7 @@ function buildLspReferencesChunk(
 	target?: string,
 	line?: number,
 	col?: number,
+	symbol?: string,
 	includeDeclaration = true,
 	limit = 50,
 ): string {
@@ -1509,6 +1564,7 @@ ${LSP_LUA_PREAMBLE}
 local target = ${target ? toLuaString(target) : "nil"}
 local line = ${line !== undefined ? line : "nil"}
 local col = ${col !== undefined ? col : "nil"}
+local symbol = ${symbol ? toLuaString(symbol) : "nil"}
 local include_decl = ${includeDeclaration ? "true" : "false"}
 local max_limit = ${limit > 0 ? limit : 50}
 
@@ -1522,46 +1578,59 @@ if #clients == 0 then
   return { success = false, reason = "No LSP clients attached to buffer " .. path }
 end
 
-local line_idx = math.max(0, (line or 1) - 1)
-local col_idx = math.max(0, (col or 1) - 1)
-local params = {
-  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
-  position = { line = line_idx, character = col_idx },
-  context = { includeDeclaration = include_decl },
-}
+local res_line, res_col, alt_cols = resolve_pos(bufnr, line, col, symbol)
 
-local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/references", params, 5000)
-if not responses or vim.tbl_isempty(responses) then
-  return { success = false, reason = "LSP references request timed out or returned no responses" }
-end
-
-local refs = {}
-local count = 0
-local truncated = false
-
-for client_id, response in pairs(responses) do
-  if response.result and type(response.result) == "table" then
-    for _, loc in ipairs(response.result) do
-      count = count + 1
-      if #refs < max_limit then
-        local item = normalize_loc(loc)
-        if item then table.insert(refs, item) end
-      else
-        truncated = true
+local function probe(l, c)
+  local p = {
+    textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+    position = { line = math.max(0, l - 1), character = math.max(0, c - 1) },
+    context = { includeDeclaration = include_decl },
+  }
+  local resp = vim.lsp.buf_request_sync(bufnr, "textDocument/references", p, 5000)
+  if not resp or vim.tbl_isempty(resp) then return nil end
+  local refs = {}
+  local cnt = 0
+  local trunc = false
+  for _, r in pairs(resp) do
+    if r.result and type(r.result) == "table" then
+      for _, loc in ipairs(r.result) do
+        cnt = cnt + 1
+        if #refs < max_limit then
+          local item = normalize_loc(loc)
+          if item then table.insert(refs, item) end
+        else
+          trunc = true
+        end
       end
     end
   end
+  return cnt > 0 and { refs = refs, count = cnt, truncated = trunc } or nil
+end
+
+local res = probe(res_line, res_col)
+local final_col = res_col
+if not res then
+  for _, ac in ipairs(alt_cols) do
+    if ac ~= res_col then
+      res = probe(res_line, ac)
+      if res then final_col = ac; break end
+    end
+  end
+end
+
+if not res then
+  return { success = false, reason = "LSP references request returned no responses", line = res_line, col = res_col }
 end
 
 return {
   success = true,
   file = path,
   relative_file = vim.fn.fnamemodify(path, ":~:."),
-  line = line or 1,
-  col = col or 1,
-  total = count,
-  truncated = truncated,
-  references = refs,
+  line = res_line,
+  col = final_col,
+  total = res.count,
+  truncated = res.truncated,
+  references = res.refs,
 }
 `;
 }
@@ -1661,6 +1730,7 @@ function buildLspCallHierarchyChunk(
 	target?: string,
 	line?: number,
 	col?: number,
+	symbol?: string,
 	direction: "incoming" | "outgoing" | "both" = "both",
 ): string {
 	return `
@@ -1668,6 +1738,7 @@ ${LSP_LUA_PREAMBLE}
 local target = ${target ? toLuaString(target) : "nil"}
 local line = ${line !== undefined ? line : "nil"}
 local col = ${col !== undefined ? col : "nil"}
+local symbol = ${symbol ? toLuaString(symbol) : "nil"}
 local dir = ${toLuaString(direction)}
 
 local bufnr, path = resolve_code_buffer(target)
@@ -1680,28 +1751,35 @@ if #clients == 0 then
   return { success = false, reason = "No LSP clients attached to buffer " .. path }
 end
 
-local line_idx = math.max(0, (line or 1) - 1)
-local col_idx = math.max(0, (col or 1) - 1)
-local params = {
-  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
-  position = { line = line_idx, character = col_idx },
-}
+local res_line, res_col, alt_cols = resolve_pos(bufnr, line, col, symbol)
 
-local prep_responses = vim.lsp.buf_request_sync(bufnr, "textDocument/prepareCallHierarchy", params, 4000)
-if not prep_responses or vim.tbl_isempty(prep_responses) then
-  return { success = false, reason = "Call hierarchy not supported by LSP server or no symbol found at position" }
+local function probe(l, c)
+  local p = {
+    textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+    position = { line = math.max(0, l - 1), character = math.max(0, c - 1) },
+  }
+  local prep = vim.lsp.buf_request_sync(bufnr, "textDocument/prepareCallHierarchy", p, 4000)
+  if not prep or vim.tbl_isempty(prep) then return nil end
+  for _, resp in pairs(prep) do
+    if resp.result and type(resp.result) == "table" and #resp.result > 0 then
+      return resp.result[1]
+    end
+  end
+  return nil
 end
 
-local target_item = nil
-for _, resp in pairs(prep_responses) do
-  if resp.result and type(resp.result) == "table" and #resp.result > 0 then
-    target_item = resp.result[1]
-    break
+local target_item = probe(res_line, res_col)
+if not target_item then
+  for _, ac in ipairs(alt_cols) do
+    if ac ~= res_col then
+      target_item = probe(res_line, ac)
+      if target_item then break end
+    end
   end
 end
 
 if not target_item then
-  return { success = false, reason = "No call hierarchy root symbol found at position" }
+  return { success = false, reason = "Call hierarchy not supported by LSP server or no symbol found at position" }
 end
 
 local incoming = {}
@@ -1784,12 +1862,13 @@ return {
 `;
 }
 
-function buildLspHoverChunk(target?: string, line?: number, col?: number): string {
+function buildLspHoverChunk(target?: string, line?: number, col?: number, symbol?: string): string {
 	return `
 ${LSP_LUA_PREAMBLE}
 local target = ${target ? toLuaString(target) : "nil"}
 local line = ${line !== undefined ? line : "nil"}
 local col = ${col !== undefined ? col : "nil"}
+local symbol = ${symbol ? toLuaString(symbol) : "nil"}
 
 local bufnr, path = resolve_code_buffer(target)
 if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -1801,17 +1880,7 @@ if #clients == 0 then
   return { success = false, reason = "No LSP clients attached to buffer " .. path }
 end
 
-local line_idx = math.max(0, (line or 1) - 1)
-local col_idx = math.max(0, (col or 1) - 1)
-local params = {
-  textDocument = { uri = vim.uri_from_bufnr(bufnr) },
-  position = { line = line_idx, character = col_idx },
-}
-
-local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", params, 4000)
-if not responses or vim.tbl_isempty(responses) then
-  return { success = false, reason = "No hover information returned" }
-end
+local res_line, res_col, alt_cols = resolve_pos(bufnr, line, col, symbol)
 
 local function extract_text(contents)
   if not contents then return nil end
@@ -1833,27 +1902,45 @@ local function extract_text(contents)
   return nil
 end
 
-local hovers = {}
-for client_id, resp in pairs(responses) do
-  if resp.result and resp.result.contents then
-    local txt = extract_text(resp.result.contents)
-    if txt and txt ~= "" then
-      table.insert(hovers, txt)
+local function probe(l, c)
+  local p = {
+    textDocument = { uri = vim.uri_from_bufnr(bufnr) },
+    position = { line = math.max(0, l - 1), character = math.max(0, c - 1) },
+  }
+  local responses = vim.lsp.buf_request_sync(bufnr, "textDocument/hover", p, 4000)
+  if not responses or vim.tbl_isempty(responses) then return nil end
+  local hovers = {}
+  for _, resp in pairs(responses) do
+    if resp.result and resp.result.contents then
+      local txt = extract_text(resp.result.contents)
+      if txt and txt ~= "" then table.insert(hovers, txt) end
+    end
+  end
+  return #hovers > 0 and table.concat(hovers, "\\n\\n---\\n\\n") or nil
+end
+
+local hover_txt = probe(res_line, res_col)
+local final_col = res_col
+if not hover_txt then
+  for _, ac in ipairs(alt_cols) do
+    if ac ~= res_col then
+      hover_txt = probe(res_line, ac)
+      if hover_txt then final_col = ac; break end
     end
   end
 end
 
-if #hovers == 0 then
-  return { success = false, reason = "Empty hover response" }
+if not hover_txt then
+  return { success = false, reason = "No hover information returned", line = res_line, col = res_col }
 end
 
 return {
   success = true,
   file = path,
   relative_file = vim.fn.fnamemodify(path, ":~:."),
-  line = line or 1,
-  col = col or 1,
-  hover = table.concat(hovers, "\\n\\n---\\n\\n"),
+  line = res_line,
+  col = final_col,
+  hover = hover_txt,
 }
 `;
 }
@@ -2022,14 +2109,16 @@ const diagnosticsParameters = Type.Object({
 
 const lspDefinitionParameters = Type.Object({
 	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
-	line: Type.Number({ description: "1-indexed line number of the symbol." }),
-	col: Type.Number({ description: "1-indexed column number of the symbol." }),
+	line: Type.Optional(Type.Number({ description: "1-indexed line number of the symbol." })),
+	col: Type.Optional(Type.Number({ description: "1-indexed column number of the symbol." })),
+	symbol: Type.Optional(Type.String({ description: "Exact symbol name to jump to (optional, resolves line and column automatically)." })),
 });
 
 const lspReferencesParameters = Type.Object({
 	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
-	line: Type.Number({ description: "1-indexed line number of the symbol." }),
-	col: Type.Number({ description: "1-indexed column number of the symbol." }),
+	line: Type.Optional(Type.Number({ description: "1-indexed line number of the symbol." })),
+	col: Type.Optional(Type.Number({ description: "1-indexed column number of the symbol." })),
+	symbol: Type.Optional(Type.String({ description: "Exact symbol name to search references for (optional, resolves coordinates automatically)." })),
 	include_declaration: Type.Optional(
 		Type.Boolean({ description: "Include declaration in references (default: true)." }),
 	),
@@ -2051,8 +2140,9 @@ const lspSymbolsParameters = Type.Object({
 
 const lspCallHierarchyParameters = Type.Object({
 	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
-	line: Type.Number({ description: "1-indexed line number of the target function/method." }),
-	col: Type.Number({ description: "1-indexed column number of the target function/method." }),
+	line: Type.Optional(Type.Number({ description: "1-indexed line number of the target function/method." })),
+	col: Type.Optional(Type.Number({ description: "1-indexed column number of the target function/method." })),
+	symbol: Type.Optional(Type.String({ description: "Exact function or method name (optional, resolves coordinates automatically)." })),
 	direction: Type.Optional(
 		StringEnum(["incoming", "outgoing", "both"] as const, {
 			description: "Call hierarchy direction: incoming (callers), outgoing (callees), or both (default: both).",
@@ -2062,8 +2152,9 @@ const lspCallHierarchyParameters = Type.Object({
 
 const lspHoverParameters = Type.Object({
 	path: Type.Optional(Type.String({ description: "Target file path. Defaults to the active code buffer." })),
-	line: Type.Number({ description: "1-indexed line number of the symbol." }),
-	col: Type.Number({ description: "1-indexed column number of the symbol." }),
+	line: Type.Optional(Type.Number({ description: "1-indexed line number of the symbol." })),
+	col: Type.Optional(Type.Number({ description: "1-indexed column number of the symbol." })),
+	symbol: Type.Optional(Type.String({ description: "Exact symbol name to inspect (optional, resolves line and column automatically)." })),
 });
 
 function textResult(text: string, details: unknown): AgentToolResult<unknown> {
@@ -2285,14 +2376,14 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 		async execute(_toolCallId, params) {
 			try {
 				const result = await client.execJson<LspDefinitionResult>(
-					buildLspDefinitionChunk(params.path, params.line, params.col),
+					buildLspDefinitionChunk(params.path, params.line, params.col, params.symbol),
 				);
 				if (!result.success) {
 					return textResult(`LSP Definition: ${result.reason ?? "No definition found."}`, { result });
 				}
 				if (!result.definitions || result.definitions.length === 0) {
 					return textResult(
-						`No definition found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${params.line}:${params.col}.`,
+						`No definition found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${result.line ?? params.line ?? 1}:${result.col ?? params.col ?? 1}.`,
 						{ result },
 					);
 				}
@@ -2327,6 +2418,7 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 						params.path,
 						params.line,
 						params.col,
+						params.symbol,
 						params.include_declaration,
 						params.limit,
 					),
@@ -2336,7 +2428,7 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 				}
 				if (!result.references || result.references.length === 0) {
 					return textResult(
-						`No references found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${params.line}:${params.col}.`,
+						`No references found for symbol at ${result.relative_file || result.file || params.path || "buffer"}:${result.line ?? params.line ?? 1}:${result.col ?? params.col ?? 1}.`,
 						{ result },
 					);
 				}
@@ -2425,7 +2517,7 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 			try {
 				const direction = params.direction ?? "both";
 				const result = await client.execJson<LspCallHierarchyResult>(
-					buildLspCallHierarchyChunk(params.path, params.line, params.col, direction),
+					buildLspCallHierarchyChunk(params.path, params.line, params.col, params.symbol, direction),
 				);
 				if (!result.success || !result.root) {
 					return textResult(`LSP Call Hierarchy: ${result.reason ?? "Call hierarchy not available."}`, { result });
@@ -2477,13 +2569,13 @@ export default function neovimExtension(pi: ExtensionAPI): void {
 		async execute(_toolCallId, params) {
 			try {
 				const result = await client.execJson<LspHoverResult>(
-					buildLspHoverChunk(params.path, params.line, params.col),
+					buildLspHoverChunk(params.path, params.line, params.col, params.symbol),
 				);
 				if (!result.success || !result.hover) {
 					return textResult(`LSP Hover: ${result.reason ?? "No hover information available."}`, { result });
 				}
 				const lines = [
-					`### LSP Hover (\`${result.relative_file || result.file || params.path || "buffer"}:${result.line}:${result.col}\`)`,
+					`### LSP Hover (\`${result.relative_file || result.file || params.path || "buffer"}:${result.line ?? params.line ?? 1}:${result.col ?? params.col ?? 1}\`)`,
 					"",
 					result.hover,
 				];

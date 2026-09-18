@@ -83,6 +83,7 @@ This repository implements a **modern, token-defensive, terminal-native harness*
 │ 2. TOKEN-DEFENSIVE PLUMBING                           │
 │    justfile.agent (capped view/grep/test filters)      │
 │    context-monitor (live status badge & /tokens)       │
+│    lsp (unified LSP semantic code intelligence)        │
 ├────────────────────────────────────────────────────────┤
 │ 3. ENVIRONMENT & SAFETY GUARDS                         │
 │    secrets-guard (workspace jailing & credential block)│
@@ -102,6 +103,7 @@ This repository implements a **modern, token-defensive, terminal-native harness*
 ### Layer 2: Token-Defensive Plumbing (Context Preservation)
 * **Controlled Discovery & Slices ([`templates/justfiles/justfile.agent`](templates/justfiles/justfile.agent))**: Forbids dumping large raw outputs (`cat`, `pytest`, `find .`). Forces line-capped views, failure-only test reports, and concise linter outputs to preserve the active context window.
 * **Context Monitoring ([`context-monitor`](pi-extensions/context-monitor/))**: Live footer status badge (`ctx: 32k/128k (25%)`) and `/tokens` inspection that enables proactive manual compaction (`/compact`) around 40% before LLM attention degrades.
+* **Semantic Code Intelligence ([`lsp`](pi-extensions/lsp/))**: Dual-backend Language Server Protocol bridge (`lsp_definition`, `lsp_references`, `lsp_symbols`, `lsp_call_hierarchy`, `lsp_hover`, `lsp_diagnostics`) routing to Neovim RPC when attached or standalone headless JSON-RPC stdio.
 
 ### Layer 3: Environment & Safety Guards (Surgical Execution)
 * **Secrets & Workspace Jailing ([`secrets-guard`](pi-extensions/secrets-guard/))**: Intercepts sensitive dotfiles (`.bashrc`, `.ssh`, `.env`), credential dumps (`env`, `printenv`), and enforces strict workspace containment across all tools (`read`, `grep`, `find`, `ls`, `bash`).

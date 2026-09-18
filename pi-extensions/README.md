@@ -12,7 +12,8 @@ self-contained and can be installed on its own.
 - **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
 - **context-monitor** : Token/context budget indicator — footer badge, `/tokens` breakdown (exact totals + estimated composition), cache efficiency, and overflow surfacing.
 - **pi-repl** : Python eval + inspection against the project's uv environment (`py_eval`, `py_inspect`). Stateless `uv run`, self-gates outside uv projects.
-- **subagents** : Declarative subagent factory. Drop a `.md` file with YAML frontmatter into a discovery directory and it becomes a tool (`subagent` meta-tool plus `direct_tool` shortcuts like `py_explore`, `git_commit`). Ships with bundled `py-explore` and `git-commit` agents, plus `/subagents`.
+- **subagents** : Declarative subagent factory. Drop a `.md` file with YAML frontmatter into a discovery directory and it becomes a tool (`subagent` meta-tool plus `direct_tool` shortcuts like `py_explore`, `git_commit`). Ships with bundled `py-explore`, `explore`, `reviewer`, `git-commit` agents, plus `/subagents`.
+- **lsp** : Unified Language Server Protocol (LSP) semantic code intelligence. Dual-backend router dispatching to Neovim RPC ($NVIM) or on-demand headless JSON-RPC stdio (`lsp_definition`, `lsp_references`, `lsp_symbols`, `lsp_call_hierarchy`, `lsp_hover`, `lsp_diagnostics`, `/lsp`).
 
 ---
 
