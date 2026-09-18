@@ -6,8 +6,10 @@
  * in the guest.
  */
 
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { RealFSProvider, VM, createHttpHooks } from "@earendil-works/gondolin";
+import { ReadonlyProvider, RealFSProvider, VM, createHttpHooks } from "@earendil-works/gondolin";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   type BashOperations,
@@ -34,6 +36,53 @@ import {
 const GUEST_WORKSPACE = "/workspace";
 const DEFAULT_GREP_LIMIT = 100;
 
+export type MountConfig = {
+  /** Host path (supports ~ for home directory) */
+  hostPath: string;
+  /** Guest mount path (defaults to matching host path) */
+  guestPath?: string;
+  /** Mount mode: 'ro' (read-only) or 'rw' (read-write) */
+  mode: "ro" | "rw";
+  /** Description / purpose */
+  description?: string;
+};
+
+export type BootstrapFileConfig = {
+  /** Host source file path (supports ~ for home directory) */
+  hostPath: string;
+  /** Guest destination path (defaults to /root/<relative_to_home> or hostPath) */
+  guestPath?: string;
+  /** Description / purpose */
+  description?: string;
+};
+
+/**
+ * Single files injected into the guest filesystem on sandbox bootstrap.
+ * Add dotfiles or configuration files here (e.g. .gitconfig, .npmrc, .pypirc).
+ */
+export const DEFAULT_BOOTSTRAP_FILES: BootstrapFileConfig[] = [
+  { hostPath: "~/.gitconfig", guestPath: "/root/.gitconfig", description: "Host git user configuration" },
+  { hostPath: "~/.npmrc", guestPath: "/root/.npmrc", description: "Host npm configuration" },
+  { hostPath: "~/.pypirc", guestPath: "/root/.pypirc", description: "Host PyPI configuration" },
+];
+
+/**
+ * Standard host directories mounted into Gondolin for daily development.
+ * Add or adjust entries here to maintain the agent's host access list.
+ */
+export const DEFAULT_DAILY_DEV_MOUNTS: MountConfig[] = [
+  // Pi Agent code, typings, docs & global CLI tools
+  { hostPath: "~/.npm-global", mode: "ro", description: "Pi source code, docs & global npm packages" },
+  // Pi persona, skills, extensions & session logs
+  { hostPath: "~/.pi/agent", mode: "ro", description: "Global Pi persona, settings, and skills" },
+  // Git config directory (if present)
+  { hostPath: "~/.config/git", mode: "ro", description: "Host git user config directory" },
+  // Fast package manager caches
+  { hostPath: "~/.cache/uv", mode: "rw", description: "uv Python package cache" },
+  { hostPath: "~/.cache/pip", mode: "rw", description: "pip cache" },
+  { hostPath: "~/.npm", mode: "rw", description: "npm package cache" },
+];
+
 type TextToolResult<TDetails> = {
   content: Array<{ type: "text"; text: string }>;
   details: TDetails | undefined;
@@ -45,6 +94,14 @@ function stripAtPrefix(value: string): string {
 
 function toPosix(value: string): string {
   return value.split(path.sep).join(path.posix.sep);
+}
+
+function expandTilde(p: string): string {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/") || p.startsWith("~\\")) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
 }
 
 function isInsideHostPath(root: string, value: string): boolean {
@@ -59,13 +116,106 @@ function hostPathToGuest(localCwd: string, hostPath: string): string {
 }
 
 function toGuestPath(localCwd: string, inputPath: string): string {
-  const trimmed = stripAtPrefix(inputPath.trim());
+  let trimmed = stripAtPrefix(inputPath.trim());
   if (!trimmed) return GUEST_WORKSPACE;
+  trimmed = expandTilde(trimmed);
   if (path.isAbsolute(trimmed)) {
     if (isInsideHostPath(localCwd, trimmed)) return hostPathToGuest(localCwd, trimmed);
     return path.posix.resolve("/", toPosix(trimmed));
   }
   return path.posix.resolve(GUEST_WORKSPACE, toPosix(trimmed));
+}
+
+function resolveDevMounts(): {
+  mounts: Record<string, any>;
+  guestEnv: Record<string, string>;
+  mountedDescriptions: string[];
+} {
+  const mounts: Record<string, any> = {};
+  const guestEnv: Record<string, string> = {};
+  const mountedDescriptions: string[] = [];
+
+  for (const entry of DEFAULT_DAILY_DEV_MOUNTS) {
+    const hostPath = expandTilde(entry.hostPath);
+    if (!fs.existsSync(hostPath)) continue;
+
+    // Gondolin VFS RealFSProvider and guest bind mounts only support directories
+    try {
+      const stat = fs.statSync(hostPath);
+      if (!stat.isDirectory()) continue;
+    } catch {
+      continue;
+    }
+
+    const baseProvider = new RealFSProvider(hostPath);
+    const provider = entry.mode === "ro" ? new ReadonlyProvider(baseProvider) : baseProvider;
+
+    // 1. Mount at host absolute path (e.g. /home/stephanie/.npm-global)
+    const guestPath = entry.guestPath ? expandTilde(entry.guestPath) : hostPath;
+    mounts[guestPath] = provider;
+
+    // 2. If it is inside the host home, also map to /root/... for tools running as root in the VM
+    if (hostPath.startsWith(os.homedir())) {
+      const rootEquiv = path.posix.join("/root", path.posix.relative(os.homedir(), hostPath));
+      mounts[rootEquiv] = provider;
+    }
+
+    mountedDescriptions.push(`${entry.hostPath} [${entry.mode}]`);
+  }
+
+  // Forward Git author & committer identity to the guest environment
+  try {
+    const gitConfigPath = path.join(os.homedir(), ".gitconfig");
+    if (fs.existsSync(gitConfigPath)) {
+      const content = fs.readFileSync(gitConfigPath, "utf8");
+      const nameMatch = content.match(/^\s*name\s*=\s*(.+)$/m);
+      const emailMatch = content.match(/^\s*email\s*=\s*(.+)$/m);
+      if (nameMatch) {
+        guestEnv.GIT_AUTHOR_NAME = nameMatch[1].trim();
+        guestEnv.GIT_COMMITTER_NAME = nameMatch[1].trim();
+      }
+      if (emailMatch) {
+        guestEnv.GIT_AUTHOR_EMAIL = emailMatch[1].trim();
+        guestEnv.GIT_COMMITTER_EMAIL = emailMatch[1].trim();
+      }
+    }
+  } catch {
+    // Ignore git config parse errors
+  }
+
+  // Handle npm-global specific guest environment variables (NODE_PATH and PATH)
+  const hostNpmGlobal = path.join(os.homedir(), ".npm-global");
+  if (fs.existsSync(hostNpmGlobal)) {
+    guestEnv.NODE_PATH = `/root/.npm-global/lib/node_modules:${hostNpmGlobal}/lib/node_modules`;
+    guestEnv.PATH = `/root/.npm-global/bin:${hostNpmGlobal}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+  }
+
+  // Parse custom mounts from environment: GONDOLIN_MOUNTS="HOST:GUEST[:ro]"
+  const envMounts = process.env.GONDOLIN_MOUNTS || process.env.GONDOLIN_EXTRA_MOUNTS;
+  if (envMounts) {
+    for (const spec of envMounts.split(",")) {
+      const parts = spec.trim().split(":");
+      if (parts.length >= 2) {
+        const host = expandTilde(parts[0]);
+        const guest = expandTilde(parts[1]);
+        const isRo = parts[2] === "ro";
+        if (fs.existsSync(host)) {
+          try {
+            const stat = fs.statSync(host);
+            if (stat.isDirectory()) {
+              const base = new RealFSProvider(host);
+              mounts[guest] = isRo ? new ReadonlyProvider(base) : base;
+              mountedDescriptions.push(`${parts[0]} -> ${parts[1]} [${isRo ? "ro" : "rw"}]`);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+  }
+
+  return { mounts, guestEnv, mountedDescriptions };
 }
 
 function createGondolinReadOps(vm: VM, localCwd: string): ReadOperations {
@@ -365,8 +515,54 @@ function createGondolinBashOps(
   };
 }
 
+async function bootstrapGuestFiles(activeVm: VM): Promise<string[]> {
+  const bootstrapped: string[] = [];
+  for (const entry of DEFAULT_BOOTSTRAP_FILES) {
+    const hostPath = expandTilde(entry.hostPath);
+    if (!fs.existsSync(hostPath)) continue;
+
+    try {
+      const stat = fs.statSync(hostPath);
+      if (!stat.isFile()) continue;
+
+      const content = fs.readFileSync(hostPath, "utf8");
+      const guestTarget =
+        entry.guestPath ??
+        (hostPath.startsWith(os.homedir())
+          ? path.posix.join("/root", path.posix.relative(os.homedir(), hostPath))
+          : hostPath);
+
+      const parentDir = path.posix.dirname(guestTarget);
+      if (parentDir && parentDir !== "/" && parentDir !== ".") {
+        try {
+          await activeVm.fs.mkdir(parentDir, { recursive: true });
+        } catch {
+          // ignore if directory exists
+        }
+      }
+
+      await activeVm.fs.writeFile(guestTarget, content, { encoding: "utf8" });
+      bootstrapped.push(entry.hostPath);
+    } catch {
+      // ignore individual file seed errors
+    }
+  }
+  return bootstrapped;
+}
+
 export default function (pi: ExtensionAPI) {
   const localCwd = process.cwd();
+
+  // Bypass Gondolin sandbox when explicitly disabled via environment variable
+  if (process.env.GONDOLIN_DISABLED === "1" || process.env.NO_SANDBOX === "1") {
+    pi.registerCommand("gondolin", {
+      description: "Manage Gondolin sandbox (status)",
+      handler(_args, ctx) {
+        ctx.ui.notify("Gondolin Sandbox is BYPASSED (GONDOLIN_DISABLED is set). Running natively on host.", "info");
+      },
+    });
+    return;
+  }
 
   const localRead = createReadTool(GUEST_WORKSPACE);
   const localWrite = createWriteTool(GUEST_WORKSPACE);
@@ -416,21 +612,29 @@ export default function (pi: ExtensionAPI) {
         },
       });
 
+      const devMounts = resolveDevMounts();
+
       const created = await VM.create({
         sandbox: {
           imagePath: process.env.GONDOLIN_DEFAULT_IMAGE || "custom-dev:latest",
         },
         httpHooks,
-        env,
+        env: {
+          ...(env || {}),
+          ...devMounts.guestEnv,
+        },
         vfs: {
           mounts: {
             [GUEST_WORKSPACE]: new RealFSProvider(localCwd),
+            ...devMounts.mounts,
           },
         },
       });
 
+      await bootstrapGuestFiles(created);
+
       vm = created;
-      guestEnv = env || {};
+      guestEnv = { ...(env || {}), ...devMounts.guestEnv };
       ctx?.ui.setStatus(
         "gondolin",
         ctx.ui.theme.fg(
@@ -438,8 +642,10 @@ export default function (pi: ExtensionAPI) {
           `Gondolin: running (${localCwd} -> ${GUEST_WORKSPACE})`,
         ),
       );
+      const devCount = devMounts.mountedDescriptions.length;
+      const mountSummary = devCount > 0 ? ` (+ ${devCount} dev mount${devCount > 1 ? "s" : ""})` : "";
       ctx?.ui.notify(
-        `Gondolin VM ready. Host ${localCwd} mounted at ${GUEST_WORKSPACE}`,
+        `Gondolin VM ready. Host ${localCwd} mounted at ${GUEST_WORKSPACE}${mountSummary}`,
         "info",
       );
       return created;
@@ -548,10 +754,30 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("before_agent_start", async (event, ctx) => {
     await ensureVm(ctx);
-    const modified = event.systemPrompt.replace(
+    const devMounts = resolveDevMounts();
+    const mountedList = devMounts.mountedDescriptions.join(", ") || "none";
+
+    const gondolinEnvNotice = `
+## Gondolin Sandbox Environment
+All tool and shell operations (read, write, edit, bash, ls, grep, find) execute inside an isolated **Gondolin Alpine Linux micro-VM**:
+- **Workspace**: Host working directory \`${localCwd}\` is mounted at \`${GUEST_WORKSPACE}\`. All project paths are relative to \`${GUEST_WORKSPACE}\`.
+- **User & OS**: Running as \`root\` on Alpine Linux. Pre-installed tools include \`uv\`, \`python3\`, \`nodejs\`, \`npm\`, \`git\`, \`ripgrep\`, \`fd\`, \`just\`, \`curl\`. Package manager is \`apk\`.
+- **Mounted Directories**: ${mountedList}.
+- **Bootstrapped Dotfiles**: \`~/.gitconfig\`, \`~/.npmrc\`, \`~/.pypirc\` are seeded into \`/root/\`.
+- **Network Boundaries**: Outbound internet is strictly filtered by an HTTP proxy to approved registries: \`github.com\`, \`pypi.org\`, \`registry.npmjs.org\`, \`crates.io\`. Arbitrary external domains are blocked.
+- **Diagnostics**:
+  - Host paths outside mounted directories (e.g. \`/home/...\`) do not exist in the guest. Always use \`${GUEST_WORKSPACE}\` or mounted paths.
+  - If network requests fail with 403 / proxy block, verify if the domain is on the allowed registry list.
+  - Subagents and background tasks share or spawn inside this micro-VM sandbox environment.
+`;
+
+    let modified = event.systemPrompt.replace(
       `Current working directory: ${localCwd}`,
       `Current working directory: ${GUEST_WORKSPACE} (Gondolin VM, mounted from host: ${localCwd})`,
     );
+
+    modified += `\n${gondolinEnvNotice.trim()}\n`;
+
     return { systemPrompt: modified };
   });
 
@@ -575,8 +801,10 @@ export default function (pi: ExtensionAPI) {
           ctx.ui.notify("Gondolin micro-VM started.", "info");
         }
       } else {
+        const devMounts = resolveDevMounts();
+        const mountsList = devMounts.mountedDescriptions.join(", ");
         ctx.ui.notify(
-          `Gondolin Sandbox is ACTIVE.\nMounted: ${localCwd} -> ${GUEST_WORKSPACE}\nAllowed hosts: github.com, pypi.org, npmjs.org, crates.io`,
+          `Gondolin Sandbox is ACTIVE.\nWorkspace: ${localCwd} -> ${GUEST_WORKSPACE}\nDev Mounts: ${mountsList || "none"}\nAllowed hosts: github.com, pypi.org, npmjs.org, crates.io`,
           "info",
         );
       }

@@ -6,6 +6,7 @@ Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`, 
 
 - **Micro-VM Isolation**: Runs commands inside a fast QEMU/KVM micro-VM (Alpine Linux).
 - **Host Workspace Mounting**: Automatically mounts the current directory read-write at `/workspace` inside the guest.
+- **Daily Dev Mounts**: Mounts key host configs (`~/.npm-global`, `~/.pi/agent`, `~/.gitconfig` in read-only mode, and `~/.cache/uv`, `~/.cache/pip`, `~/.npm` in read-write mode) for seamless daily coding.
 - **TUI Status**: Displays the live status of the micro-VM in Pi's status bar.
 - **Clean Shutdown**: Gracefully stops the micro-VM when the Pi session exits.
 
@@ -24,3 +25,10 @@ ln -s "$PWD" ~/.pi/agent/extensions/gondolin
 ```bash
 pi -e /absolute/path/to/coding-ai-resources/pi-extensions/gondolin/index.ts
 ```
+
+## Configuration & Environment Variables
+
+- `GONDOLIN_DISABLED=1` (or `NO_SANDBOX=1`): Run natively without starting the micro-VM.
+- `GONDOLIN_MOUNTS="HOST:GUEST[:ro],..."`: Mount additional host directories or files into the guest micro-VM.
+- `GONDOLIN_DEFAULT_IMAGE`: Custom image path or tag (default: `custom-dev:latest`).
+
