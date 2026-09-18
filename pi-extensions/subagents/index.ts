@@ -180,6 +180,7 @@ interface SingleResult {
 	stopReason?: string;
 	errorMessage?: string;
 	step?: number;
+	pid?: number;
 }
 
 interface SubagentDetails {
@@ -297,6 +298,18 @@ interface DispatchDefaults {
 	thinkingLevel?: ThinkingLevel;
 }
 
+function resolveHostCwd(targetCwd: string | undefined, defaultCwd: string): string {
+	if (!targetCwd) return defaultCwd;
+	const trimmed = targetCwd.trim();
+	if (!trimmed || trimmed === "/workspace" || trimmed === "/workspace/") return defaultCwd;
+	if (trimmed.startsWith("/workspace/")) {
+		const rel = trimmed.slice("/workspace/".length);
+		return path.resolve(defaultCwd, rel);
+	}
+	if (path.isAbsolute(trimmed) && fs.existsSync(trimmed)) return trimmed;
+	return path.resolve(defaultCwd, trimmed);
+}
+
 async function runSingleAgent(
 	defaultCwd: string,
 	dispatchDefaults: DispatchDefaults,
@@ -372,17 +385,23 @@ async function runSingleAgent(
 			args.push("--append-system-prompt", tmpPromptPath);
 		}
 
-		args.push(`Task: ${task}`);
+		// Normalize guest /workspace paths in task to clean relative paths for host child process
+		const effectiveTask = task.replace(/\/workspace\//g, "").replace(/\/workspace\b/g, ".");
+		args.push(`Task: ${effectiveTask}`);
 		let wasAborted = false;
+
+		const effectiveCwd = resolveHostCwd(cwd, defaultCwd);
 
 		const exitCode = await new Promise<number>((resolve) => {
 			const invocation = getPiInvocation(args);
 			const proc = spawn(invocation.command, invocation.args, {
-				cwd: cwd ?? defaultCwd,
+				cwd: effectiveCwd,
 				shell: false,
 				stdio: ["ignore", "pipe", "pipe"],
 				env: { ...process.env, PI_SUBAGENT_DEPTH: String(childDepth) },
 			});
+			currentResult.pid = proc.pid;
+			emitUpdate();
 			let buffer = "";
 
 			const processLine = (line: string) => {
@@ -438,7 +457,8 @@ async function runSingleAgent(
 				resolve(code ?? 0);
 			});
 
-			proc.on("error", () => {
+			proc.on("error", (err: Error) => {
+				currentResult.errorMessage = `Failed to spawn subagent in ${effectiveCwd}: ${err.message}`;
 				resolve(1);
 			});
 
@@ -631,21 +651,23 @@ function renderSubagentResult(
 		const icon = isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
 		const displayItems = getDisplayItems(r.messages);
 		const finalOutput = getFinalOutput(r.messages);
+		const pidBadge = r.pid ? ` ${theme.fg("dim", `[pid:${r.pid}]`)}` : "";
+		const errorText = r.errorMessage || (r.stderr ? r.stderr.trim() : "");
 
 		if (options.expanded) {
 			const container = new Container();
-			let header = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
+			let header = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${pidBadge}${theme.fg("muted", ` (${r.agentSource})`)}`;
 			if (isError && r.stopReason) header += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
 			container.addChild(new Text(header, 0, 0));
-			if (isError && r.errorMessage)
-				container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
+			if (isError && errorText)
+				container.addChild(new Text(theme.fg("error", `Error: ${errorText}`), 0, 0));
 			container.addChild(new Spacer(1));
 			container.addChild(new Text(theme.fg("muted", "─── Task ───"), 0, 0));
 			container.addChild(new Text(theme.fg("dim", r.task), 0, 0));
 			container.addChild(new Spacer(1));
 			container.addChild(new Text(theme.fg("muted", "─── Output ───"), 0, 0));
 			if (displayItems.length === 0 && !finalOutput) {
-				container.addChild(new Text(theme.fg("muted", "(no output)"), 0, 0));
+				container.addChild(new Text(theme.fg("muted", isError ? errorText || "(failed without output)" : "(no output)"), 0, 0));
 			} else {
 				for (const item of displayItems) {
 					if (item.type === "toolCall")
@@ -670,9 +692,9 @@ function renderSubagentResult(
 			return container;
 		}
 
-		let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
+		let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${pidBadge}${theme.fg("muted", ` (${r.agentSource})`)}`;
 		if (isError && r.stopReason) text += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
-		if (isError && r.errorMessage) text += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
+		if (isError && errorText) text += `\n${theme.fg("error", `Error: ${errorText}`)}`;
 		else if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
 		else {
 			text += `\n${renderDisplayItems(displayItems, COLLAPSED_ITEM_COUNT)}`;
@@ -717,11 +739,13 @@ function renderSubagentResult(
 				const rIcon = r.exitCode === 0 ? theme.fg("success", "✓") : theme.fg("error", "✗");
 				const displayItems = getDisplayItems(r.messages);
 				const finalOutput = getFinalOutput(r.messages);
+				const pidBadge = r.pid ? ` ${theme.fg("dim", `[pid:${r.pid}]`)}` : "";
+				const stepError = r.errorMessage || (r.stderr ? r.stderr.trim() : "");
 
 				container.addChild(new Spacer(1));
 				container.addChild(
 					new Text(
-						`${theme.fg("muted", `─── Step ${r.step}: `) + theme.fg("accent", r.agent)} ${rIcon}`,
+						`${theme.fg("muted", `─── Step ${r.step}: `) + theme.fg("accent", r.agent)}${pidBadge} ${rIcon}`,
 						0,
 						0,
 					),
@@ -743,6 +767,8 @@ function renderSubagentResult(
 				if (finalOutput) {
 					container.addChild(new Spacer(1));
 					container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
+				} else if (r.exitCode !== 0 && stepError) {
+					container.addChild(new Text(theme.fg("error", `Error: ${stepError}`), 0, 0));
 				}
 
 				const stepUsage = formatUsageStats(r.usage, r.model);
@@ -765,9 +791,13 @@ function renderSubagentResult(
 		for (const r of details.results) {
 			const rIcon = r.exitCode === 0 ? theme.fg("success", "✓") : theme.fg("error", "✗");
 			const displayItems = getDisplayItems(r.messages);
-			text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
-			if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
-			else text += `\n${renderDisplayItems(displayItems, 5)}`;
+			const pidBadge = r.pid ? ` ${theme.fg("dim", `[pid:${r.pid}]`)}` : "";
+			const stepError = r.errorMessage || (r.stderr ? r.stderr.trim() : "");
+			text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)}${pidBadge} ${rIcon}`;
+			if (displayItems.length === 0) {
+				if (r.exitCode !== 0 && stepError) text += `\n${theme.fg("error", `Error: ${stepError}`)}`;
+				else text += `\n${theme.fg("muted", "(no output)")}`;
+			} else text += `\n${renderDisplayItems(displayItems, 5)}`;
 		}
 		const usageStr = formatUsageStats(aggregateUsage(details.results));
 		if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
@@ -803,10 +833,12 @@ function renderSubagentResult(
 				const rIcon = isFailedResult(r) ? theme.fg("error", "✗") : theme.fg("success", "✓");
 				const displayItems = getDisplayItems(r.messages);
 				const finalOutput = getFinalOutput(r.messages);
+				const pidBadge = r.pid ? ` ${theme.fg("dim", `[pid:${r.pid}]`)}` : "";
+				const taskError = r.errorMessage || (r.stderr ? r.stderr.trim() : "");
 
 				container.addChild(new Spacer(1));
 				container.addChild(
-					new Text(`${theme.fg("muted", "─── ") + theme.fg("accent", r.agent)} ${rIcon}`, 0, 0),
+					new Text(`${theme.fg("muted", "─── ") + theme.fg("accent", r.agent)}${pidBadge} ${rIcon}`, 0, 0),
 				);
 				container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", r.task), 0, 0));
 
@@ -825,6 +857,8 @@ function renderSubagentResult(
 				if (finalOutput) {
 					container.addChild(new Spacer(1));
 					container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
+				} else if (isFailedResult(r) && taskError) {
+					container.addChild(new Text(theme.fg("error", `Error: ${taskError}`), 0, 0));
 				}
 
 				const taskUsage = formatUsageStats(r.usage, r.model);
@@ -848,10 +882,13 @@ function renderSubagentResult(
 						? theme.fg("error", "✗")
 						: theme.fg("success", "✓");
 			const displayItems = getDisplayItems(r.messages);
-			text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)} ${rIcon}`;
-			if (displayItems.length === 0)
-				text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
-			else text += `\n${renderDisplayItems(displayItems, 5)}`;
+			const pidBadge = r.pid ? ` ${theme.fg("dim", `[pid:${r.pid}]`)}` : "";
+			const taskError = r.errorMessage || (r.stderr ? r.stderr.trim() : "");
+			text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)}${pidBadge} ${rIcon}`;
+			if (displayItems.length === 0) {
+				if (isFailedResult(r) && taskError) text += `\n${theme.fg("error", `Error: ${taskError}`)}`;
+				else text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
+			} else text += `\n${renderDisplayItems(displayItems, 5)}`;
 		}
 		if (!isRunning) {
 			const usageStr = formatUsageStats(aggregateUsage(details.results));

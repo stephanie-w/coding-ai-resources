@@ -1,8 +1,9 @@
 ---
 name: git-commit
 description: Intelligent Git change clustering and atomic committer. Inspects dirty working tree (and optionally unpushed commits), clusters related changes into atomic units with Conventional Commit messages, and stages and commits them with safety guardrails.
+model: deepseek/deepseek-v4-flash
+thinking: 1
 tools: read, grep, find, bash
-thinking: 2
 direct_tool: true
 guidelines:
   - Use git_commit to inspect dirty working trees, split accumulated changes into clean atomic commits, and write conventional commit messages.

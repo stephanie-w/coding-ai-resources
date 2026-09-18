@@ -87,9 +87,17 @@ Optional params: `agentScope` (`user` \| `project` \| `both`), `cwd`,
 
 ### Direct tools
 
-`direct_tool: true` agents get their own tool, e.g. `py_explore({ task, cwd? })` or `git_commit({ task, cwd? })`.
-The bundled `py-explore` and `git-commit` agents ship with `direct_tool: true`, so they are available
-directly out of the box (`py_explore`, `git_commit`).
+`direct_tool: true` agents get their own tool, e.g. `py_explore({ task, cwd? })`, `explore({ task, cwd? })`, or `git_commit({ task, cwd? })`.
+
+## Bundled Catalog Subagents
+
+The extension ships with the following pre-configured, high-velocity subagents:
+
+| Agent / Tool | Model | Thinking | Tools Whitelist | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, py_inspect, bash` | Fast Python structural investigator |
+| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Fast polyglot symbol and code locator |
+| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Change clustering and Conventional Commits |
 
 ## Commands
 
