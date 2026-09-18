@@ -24,6 +24,8 @@ JUST_UNSTABLE=1 just --fmt     # format the justfile (formatter is unstable)
 | `just test-pack [pack]` | Run Pi with this repository's skills loaded |
 | `just reflect [timespan]` | Mine session corrections to evolve the rules |
 | `just validate` | Validate all `package.json` manifests |
+| `just sync-docs` | Fetch official Pi coding-agent documentation from upstream |
+| `just sync-examples` | Fetch official Pi coding-agent examples (extensions/SDK) from upstream |
 
 After editing the justfile, run `JUST_UNSTABLE=1 just --fmt`; do not hand-tune the
 `{{ x }}` spacing.
@@ -38,6 +40,8 @@ After editing the justfile, run `JUST_UNSTABLE=1 just --fmt`; do not hand-tune t
 - `packages/` — Pi package manifests
 - `templates/` — files copied into target projects
 - `docs/pi-harness.md` — persona/flavor model, prompt sources, scenarios
+- `docs/pi-agent/` — mirrored upstream documentation and reference examples (`examples/`)
+
 
 ## Conventions
 

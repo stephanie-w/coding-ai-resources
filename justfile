@@ -17,6 +17,14 @@ validate:
     done
     @echo "All package manifests are valid."
 
+# Sync upstream Pi documentation from earendil-works/pi into docs/pi-agent/
+sync-docs:
+    @bash "{{ justfile_directory() }}/docs/pi-agent/fetch-docs.sh"
+
+# Sync upstream Pi coding-agent examples from earendil-works/pi into docs/pi-agent/examples/
+sync-examples:
+    @python3 "{{ justfile_directory() }}/docs/pi-agent/fetch-examples.py"
+
 # Install a package globally for all sessions on this machine (default: core)
 install-global pack="core":
     pi install "{{ justfile_directory() }}/packages/{{ pack }}"

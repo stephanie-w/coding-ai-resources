@@ -27,6 +27,7 @@ coding-ai-resources/
 │   └── task-tracking-full.instructions.md   # Rich stateful thought-process tracking
 ├── docs/                       # Research, backlogs, and catalogs
 │   ├── pi-harness.md           # Persona, flavors, and launcher for Pi sessions
+│   ├── python-tooling.md       # Python development toolchain (uv, ruff, ty, REPL, QA gates)
 │   └── skills-backlog.md       # Evaluated candidate skills backlog
 ├── skills/                     # Reusable procedural skills (Agent Skills standard)
 │   ├── analyze-sessions/       # Tools for querying sessions, costs, and reflection
@@ -55,7 +56,8 @@ coding-ai-resources/
 │   ├── gondolin/               # Sandboxes execution inside an isolated Linux micro-VM (/gondolin)
 │   ├── neovim/                 # Live Neovim editor context and buffer awareness
 │   ├── pi-repl/                # Python eval & type introspection against active uv environment
-│   └── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
+│   ├── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
+│   └── subagents/              # Declarative subagent factory (py_explore, /subagents)
 ├── prompts/                    # Ephemeral task templates and slash commands
 ├── packages/                   # Composable bundles referencing root primitives
 │   └── core/                   # Baseline pack (all general agent skills)

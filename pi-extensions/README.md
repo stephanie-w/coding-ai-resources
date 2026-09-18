@@ -11,6 +11,7 @@ self-contained and can be installed on its own.
 - **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
 - **context-monitor** : Token/context budget indicator — footer badge, `/tokens` breakdown (exact totals + estimated composition), cache efficiency, and overflow surfacing.
 - **pi-repl** : Python eval + inspection against the project's uv environment (`py_eval`, `py_inspect`). Stateless `uv run`, self-gates outside uv projects.
+- **subagents** : Declarative subagent factory. Drop a `.md` file with YAML frontmatter into a discovery directory and it becomes a tool (`subagent` meta-tool plus `direct_tool` shortcuts like `py_explore`). Ships with the bundled `py-explore` agent and `/subagents`.
 
 ---
 
@@ -142,5 +143,6 @@ Inside pi, run `/help` (or `/reload`) and check for the extension's commands/too
   (only active when launched from a Neovim terminal, i.e. `$NVIM` is set)
 - **git-checkpoint** → `/checkpoint`, `/rollback`
 - **bash-guard** → transparent `bash` interception; no commands of its own
+- **subagents** → `subagent` tool, `py_explore` direct tool, `/subagents` command
 
 Each extension's own `README.md` documents its behavior, configuration, and caveats.
