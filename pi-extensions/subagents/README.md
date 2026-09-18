@@ -87,9 +87,9 @@ Optional params: `agentScope` (`user` \| `project` \| `both`), `cwd`,
 
 ### Direct tools
 
-`direct_tool: true` agents get their own tool, e.g. `py_explore({ task, cwd? })`.
-The bundled `py-explore` agent ships with `direct_tool: true`, so it is available
-as `py_explore` out of the box.
+`direct_tool: true` agents get their own tool, e.g. `py_explore({ task, cwd? })` or `git_commit({ task, cwd? })`.
+The bundled `py-explore` and `git-commit` agents ship with `direct_tool: true`, so they are available
+directly out of the box (`py_explore`, `git_commit`).
 
 ## Commands
 
