@@ -11,10 +11,10 @@ which pi-subagents injects into every spawned process.
 ### Main session (`PI_SUBAGENT_DEPTH` = 0 or unset) — interactive prompt
 
 - Heuristically detects destructive/questionable commands via shell-aware parsing
-- Prompts for destructive git only: `git rm`, `git clean -f`, `git reset --hard`,
-  `git checkout`/`git restore` that overwrite the working tree, `git push --force`,
-  `git reflog expire`, `git gc --prune`. Read-only and routine git (`status`, `log`, `diff`,
-  `add`, `commit`, `pull`, `push`, `fetch`, ...) passes through silently.
+- Prompts for destructive git: `git rm`, `git clean -f`, `git reset --hard`,
+  `git checkout`/`git restore` that overwrite the working tree, `git push` (all pushes),
+  `git reflog expire`, `git gc --prune`. Read-only and routine local git (`status`, `log`, `diff`,
+  `add`, `commit`, `fetch`, ...) passes through silently.
 - Prompts for disk/volume tooling: `diskutil`, `hdiutil`, `mkfs*`, `newfs_*`, `wipefs`, `parted`,
   `fdisk`, `gdisk/sgdisk`, `cryptsetup`, `pvcreate/vgcreate/lvcreate`, `zpool`, `lsblk`
 - Prompts for: `rm`/`rmdir`/`unlink`, `sudo`, `find -delete`, `xargs rm`, `dd`, `truncate`, `sed -i`,

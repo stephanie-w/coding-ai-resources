@@ -133,9 +133,13 @@ function analyzeSegment(seg: Token[]): Risk | null {
 				reasons.push("git restore (can overwrite working tree)");
 			}
 		}
-		if (sub === "push" && (subArgs.includes("--force") || subArgs.includes("--force-with-lease") || subArgs.includes("-f"))) {
+		if (sub === "push") {
 			severity = "high";
-			reasons.push("git push --force (rewrite remote history)");
+			if (subArgs.includes("--force") || subArgs.includes("--force-with-lease") || subArgs.includes("-f")) {
+				reasons.push("git push --force (rewrite remote history)");
+			} else {
+				reasons.push("git push (pushing to remote repository is restricted to human user)");
+			}
 		}
 		if (sub === "reflog" && subArgs.includes("expire")) {
 			severity = "high";
@@ -936,16 +940,14 @@ const HEADLESS_BLOCKED: Array<{ pattern: RegExp; reason: string }> = [
 
 // Subset of HEADLESS_BLOCKED used as the hard-block floor when bash-guard is
 // disabled in an interactive (main) session. The user explicitly opts into
-// autonomy here, so routine git operations (commit/pull/push) are allowed
-// through; only truly catastrophic / non-recoverable patterns remain blocked.
+// autonomy here, so routine local git operations (commit/pull) are allowed
+// through; remote pushes and destructive operations remain strictly blocked.
 const MAIN_DISABLED_BLOCKED: Array<{ pattern: RegExp; reason: string }> = HEADLESS_BLOCKED.filter(
 	({ pattern }) => {
 		const src = pattern.source;
 		return !(
 			src.includes("git\\s+commit") ||
-			src.includes("git\\s+pull") ||
-			// Keep `git push --force` blocked but allow plain `git push`.
-			src === "\\bgit\\s+push\\b"
+			src.includes("git\\s+pull")
 		);
 	},
 );
