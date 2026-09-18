@@ -6,6 +6,7 @@ self-contained and can be installed on its own.
 - **neovim** : Native Neovim RPC integration. Gives Pi live awareness of active files, cursor positions, unsaved in-memory buffers, and remote command execution.
 - **git-checkpoint** : Manual, durable, reversible git snapshots of the working tree via `/checkpoint` and `/rollback`, stored as refs under `refs/pi/checkpoints/`. Fully decoupled from `/tree` and `/fork`.
 - **bash-guard** : Intercepts agent-issued `bash` tool calls and prompts before destructive commands (main session) or hard-blocks catastrophic ones (subagents).
+- **secrets-guard** : Intercepts sensitive file reads, credential dumping, API key inspection, and enforces workspace jailing across all tools.
 - **gondolin** : Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`) inside an isolated Gondolin Linux micro-VM.
 - **prompt-snippets** : Toggleable, per-message prompt fragments (`alt+s` / `/snippets`) that are prepended or appended to your message. Skips slash commands so templates and skills still expand.
 - **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
@@ -18,11 +19,12 @@ self-contained and can be installed on its own.
 ## Requirements
 
 - pi installed (`npm install -g @earendil-works/pi-coding-agent`)
-- The extension's own runtime dependencies installed (only **bash-guard** has any).
+- Extensions with runtime dependencies (**bash-guard**, **secrets-guard**) need their packages installed.
   `node_modules/` is git-ignored, so after cloning run:
 
   ```bash
   cd pi-extensions/bash-guard && npm install
+  cd pi-extensions/secrets-guard && npm install
   ```
 
 Pi auto-discovers extensions from these locations:

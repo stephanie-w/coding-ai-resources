@@ -1,0 +1,15 @@
+{
+  "name": "pi-secrets-guard",
+  "version": "0.1.0",
+  "description": "Intercept and protect against sensitive reads, credential theft, and out-of-workspace filesystem access in Pi sessions",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "shell-quote": "^1.8.3"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
