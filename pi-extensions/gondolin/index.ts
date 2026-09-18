@@ -553,6 +553,12 @@ async function bootstrapGuestFiles(activeVm: VM): Promise<string[]> {
 export default function (pi: ExtensionAPI) {
   const localCwd = process.cwd();
 
+  // Subagents (PI_SUBAGENT_DEPTH >= 1) must not attempt to boot a nested micro-VM.
+  const subagentDepth = Number(process.env.PI_SUBAGENT_DEPTH ?? "0");
+  if (Number.isFinite(subagentDepth) && subagentDepth >= 1) {
+    return;
+  }
+
   // Bypass Gondolin sandbox when explicitly disabled via environment variable
   if (process.env.GONDOLIN_DISABLED === "1" || process.env.NO_SANDBOX === "1") {
     pi.registerCommand("gondolin", {
