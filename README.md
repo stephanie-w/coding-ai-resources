@@ -120,6 +120,7 @@ Pre-configured subagents available via the [`subagents`](pi-extensions/subagents
 | :--- | :--- | :--- | :--- | :--- |
 | **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, py_inspect, bash` | Fast Python structural & dependency investigator |
 | **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Polyglot code searcher and symbol locator |
+| **`reviewer`** (`reviewer`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, py_inspect` | Critical code review, boundary analysis & regression checks |
 | **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Intelligent Conventional Commit clusterer |
 
 ---

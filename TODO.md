@@ -96,7 +96,7 @@
   - [ ] Create bundled default subagent definitions:
     - [x] `subagents/explore.md` (`direct_tool: true`, fast polyglot read-only code searcher with `read,grep,find` and flash model)
     - [x] `subagents/py-explore.md` (`direct_tool: true`, Python structural & dependency investigator using `read,grep,find,py_inspect` and ephemeral `uv run --with pyright`)
-    - [ ] `subagents/reviewer.md` (diff / patch reviewer with `read,grep,bash`)
+    - [x] `subagents/reviewer.md` (`direct_tool: true`, diff / code reviewer with `read,grep,find,py_inspect` and flash model with `thinking: 2`)
   - [x] Add `/subagents` slash command (list loaded subagents, discovery paths, active models, tool whitelists, and registration mode)
   - [x] Add `README.md` documentation and authoring guide for custom subagent `.md` files
 
