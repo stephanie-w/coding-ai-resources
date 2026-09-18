@@ -57,7 +57,8 @@ coding-ai-resources/
 │   ├── neovim/                 # Live Neovim editor context and buffer awareness
 │   ├── pi-repl/                # Python eval & type introspection against active uv environment
 │   ├── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
-│   └── subagents/              # Declarative subagent factory (py_explore, /subagents)
+│   ├── secrets-guard/          # Intercepts sensitive reads, env dumps, and enforces workspace jailing
+│   └── subagents/              # Declarative subagent factory (py_explore, explore, git_commit, /subagents)
 ├── prompts/                    # Ephemeral task templates and slash commands
 ├── packages/                   # Composable bundles referencing root primitives
 │   └── core/                   # Baseline pack (all general agent skills)
@@ -84,7 +85,9 @@ This repository implements a **modern, token-defensive, terminal-native harness*
 │    context-monitor (live status badge & /tokens)       │
 ├────────────────────────────────────────────────────────┤
 │ 3. ENVIRONMENT & SAFETY GUARDS                         │
+│    secrets-guard (workspace jailing & credential block)│
 │    bash-guard (interactive prompt vs headless block)   │
+│    gondolin (QEMU/KVM micro-VM sandbox & proxy)        │
 │    pi-repl (uv-bound python runtime evaluation)        │
 │    git-checkpoint (clean snapshots & rollbacks)        │
 └────────────────────────────────────────────────────────┘
@@ -101,9 +104,23 @@ This repository implements a **modern, token-defensive, terminal-native harness*
 * **Context Monitoring ([`context-monitor`](pi-extensions/context-monitor/))**: Live footer status badge (`ctx: 32k/128k (25%)`) and `/tokens` inspection that enables proactive manual compaction (`/compact`) around 40% before LLM attention degrades.
 
 ### Layer 3: Environment & Safety Guards (Surgical Execution)
+* **Secrets & Workspace Jailing ([`secrets-guard`](pi-extensions/secrets-guard/))**: Intercepts sensitive dotfiles (`.bashrc`, `.ssh`, `.env`), credential dumps (`env`, `printenv`), and enforces strict workspace containment across all tools (`read`, `grep`, `find`, `ls`, `bash`).
 * **Shell Interception ([`bash-guard`](pi-extensions/bash-guard/))**: Parses bash tool calls with shell-aware AST. Provides interactive confirmation for risky commands in main sessions, and automatic hard-blocking of catastrophic operations in headless subagents (`PI_SUBAGENT_DEPTH >= 1`).
+* **Micro-VM Sandboxing ([`gondolin`](pi-extensions/gondolin/))**: Runs operations inside an isolated Alpine micro-VM with an outbound HTTP proxy filter. Automatically bypasses nested VM creation when executing subagents.
 * **Python Runtime Inspection ([`pi-repl`](pi-extensions/pi-repl/))**: Evaluates snippets and introspects type signatures directly against the active project's `uv` environment without writing throwaway test files.
 * **Durable Checkpoints ([`git-checkpoint`](pi-extensions/git-checkpoint/))**: Fast working-tree snapshots (`/checkpoint`, `/rollback`) before high-variance multi-file refactors.
+
+---
+
+## Bundled Catalog Subagents
+
+Pre-configured subagents available via the [`subagents`](pi-extensions/subagents/) extension:
+
+| Subagent / Tool | Model | Thinking | Tools Whitelist | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, py_inspect, bash` | Fast Python structural & dependency investigator |
+| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Polyglot code searcher and symbol locator |
+| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Intelligent Conventional Commit clusterer |
 
 ---
 
