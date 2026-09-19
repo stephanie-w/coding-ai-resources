@@ -37,6 +37,7 @@ coding-ai-resources/
 │   ├── html2md/                # HTML to Markdown conversion tool
 │   ├── idea-refine/            # Structured divergent/convergent ideation framework
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
+│   ├── reflect/                # Extracts learnings from session corrections to evolve agent rules
 │   ├── session-handoff/        # Point-in-time state checkpointing and session resume
 │   ├── task-management/        # Structured TODO.md task/epic templates and lifecycle
 │   ├── technical-writing/      # Disciplined technical documentation, RFCs, and PR specs
@@ -159,19 +160,48 @@ This single non-destructive command:
 
 ---
 
-## Self-Improvement & Reflection Workflow
+## Self-Improvement & Incremental Reflection Workflow
 
-To evolve your rules and instructions based on real corrections across all projects over the last month:
+The harness implements a **two-tier incremental learning architecture** to turn friction into permanent improvements without bloating global prompts or causing cross-project pollution:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. DAILY IN-SESSION LEARNING (Any project, any directory)                   │
+│    Trigger: Type `reflect` in chat after a task or correction               │
+│                                                                             │
+│    • Scope: Universal / Harness-Portable.                                   │
+│    • Target: Strictly local `./AGENTS.md` in the current project root.      │
+│    • Why: 100% safe. Captures repo-specific conventions, domain logic, and │
+│      local environment ports without polluting other projects.              │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       │ (Pi session transcripts accumulate
+                                       │  in ~/.pi/agent/sessions/)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. CENTRAL CATALOG CURATION (Pi-Powered Macro Reflection)                   │
+│    Command: `just reflect [timespan]` (Run from this repository)            │
+│                                                                             │
+│    • Scope: Pi-Native Automation.                                           │
+│    • Extraction: Mines human corrections across all Pi sessions from        │
+│      ~/.pi/agent/sessions/ via local Python parsing (`prompts.py`).         │
+│    • Target Routing:                                                        │
+│      - Universal baseline rules ──> `agents/base.agent.md` (kept minimal)   │
+│      - Language/Stack standards ──> `flavors/python.md`, `flavors/<lang>.md`│
+│      - Multi-step playbooks     ──> New `skills/<name>/SKILL.md`            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Running Macro Reflection in Pi
+
+To evolve your central personas, flavors, and catalog skills based on real corrections across all Pi projects over the last month:
 
 ```bash
-# Run reflection from this repository
+# Run 30-day reflection from this repository
 just reflect 30d
 ```
 
-This launches a dedicated Pi session that:
-1. Mines human corrections from `~/.pi/agent/sessions/` using zero-token local Python extraction.
-2. Identifies recurring friction points.
-3. Directly proposes and commits updates to [agents/base.agent.md](agents/base.agent.md), [instructions/](instructions/), or [flavors/](flavors/).
+This launches a dedicated Pi session that groups recurring friction points from `~/.pi/agent/sessions/` and proposes additive diffs for your confirmation before committing.
 
 ---
 
