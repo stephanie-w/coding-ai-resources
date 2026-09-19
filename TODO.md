@@ -171,3 +171,19 @@
     - [x] Add `/lsp` slash command (display active backend, connected servers, root URI, status)
     - [x] Add `README.md` documentation and setup guides
 
+### Extension: `btw` (Ephemeral Out-of-Band Side Query)
+- **Concept**: A dedicated `/btw <question>` slash command for Pi to ask quick, context-aware side questions (code lookups, API clarifications, syntax reminders) without appending to conversation history, polluting the LLM context window, or continuing active task execution.
+- **Key Mechanics**:
+  - Register `/btw` slash command via `pi.registerCommand("btw", ...)`
+  - Snapshot current conversation context / system prompt
+  - Execute an isolated, single-turn completion with read-only tools or no tools
+  - Enforce strict non-continuation (answers the query only; will not write files or advance prior task plans)
+  - Render streamed output cleanly in the Pi TUI without persisting to `transcript` / session history
+- **Backlog & Implementation Tasks**:
+  - [ ] Create extension directory `pi-extensions/btw/` with `package.json` manifest
+  - [ ] Implement `index.ts` registering the `/btw` slash command
+  - [ ] Support optional fast/flash model override for instant lightweight lookups
+  - [ ] Render response using `@earendil-works/pi-tui` components
+  - [ ] Add `README.md` documentation and usage examples
+
+
