@@ -95,10 +95,10 @@ The extension ships with the following pre-configured, high-velocity subagents:
 
 | Agent / Tool | Model | Thinking | Tools Whitelist | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, py_inspect, bash` | Fast Python structural investigator |
-| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Fast polyglot symbol and code locator |
+| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, py_inspect, bash` | Fast Python structural investigator |
+| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find` | Fast polyglot symbol and code locator |
 | **`reviewer`** (`reviewer`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, py_inspect` | Critical code review, boundary analysis & regression checks |
-| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Change clustering and Conventional Commits |
+| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, bash` | Change clustering and Conventional Commits |
 
 ## Commands
 

@@ -121,10 +121,10 @@ Pre-configured subagents available via the [`subagents`](pi-extensions/subagents
 
 | Subagent / Tool | Model | Thinking | Tools Whitelist | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, py_inspect, bash` | Fast Python structural & dependency investigator |
-| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Polyglot code searcher and symbol locator |
+| **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, py_inspect, bash` | Fast Python structural & dependency investigator |
+| **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find` | Polyglot code searcher and symbol locator |
 | **`reviewer`** (`reviewer`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, py_inspect` | Critical code review, boundary analysis & regression checks |
-| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Intelligent Conventional Commit clusterer |
+| **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, bash` | Intelligent Conventional Commit clusterer |
 
 > [!NOTE]
 > **Personas vs. Subagents**: Root [`agents/`](agents/) defines full **interactive personas** (the pair-programming session you talk to). In contrast, [`pi-extensions/subagents/subagents/`](pi-extensions/subagents/subagents/) defines **delegated autonomous subagents** (headless child workers invoked as tools). They ship bundled inside the extension directory so the subagent tool works self-contained out of the box when linked.

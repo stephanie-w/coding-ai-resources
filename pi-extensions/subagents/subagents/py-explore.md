@@ -2,7 +2,7 @@
 name: py-explore
 description: Read-only Python structural investigator for uv projects. Maps project source (src/, pyproject.toml), traces imports and types, and surfaces non-obvious findings (dead modules, private APIs, version mismatches). Skips .venv/site-packages.
 model: deepseek/deepseek-v4-flash
-thinking: 1
+thinking: 0
 tools: read, grep, find, py_inspect, bash
 direct_tool: true
 guidelines:

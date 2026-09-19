@@ -2,7 +2,7 @@
 name: explore
 description: Fast polyglot code searcher and structural explorer. Locates symbols, files, architecture patterns, and imports across any codebase without modifying files.
 model: deepseek/deepseek-v4-flash
-thinking: 1
+thinking: 0
 tools: read, grep, find
 direct_tool: true
 guidelines:
