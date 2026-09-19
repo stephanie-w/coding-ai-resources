@@ -8,7 +8,7 @@ The TODO.md is organized hierarchically:
 ```
 # acp-client TODO
 ## Phase X: Topic (Status)
-### 🚀 Priority Category
+### Priority Category
 - [ ] **Task Title**:
     - Subtask details
     - More details
@@ -25,7 +25,7 @@ The TODO.md is organized hierarchically:
 Apply the task template **within** the existing checklist items:
 
 ```markdown
-### 🚀 Immediate Priority: UI Polish & UX
+### Immediate Priority: UI Polish & UX
 - [ ] **Modal Help & Settings**:
     
     #### Metadata
@@ -79,7 +79,7 @@ Replace the simple checklist item with the enhanced template:
     - **Updated**: 2026-03-14
     
     #### Relationships
-    - **Parent**: Phase 5: Advanced TUI Features → 🚀 Immediate Priority: UI Polish & UX
+    - **Parent**: Phase 5: Advanced TUI Features → Immediate Priority: UI Polish & UX
     
     #### Goal
     Implement modal screens for Help and Settings...
@@ -120,7 +120,7 @@ Replace the simple checklist item with the enhanced template:
 ```markdown
 ## Phase 5: Advanced TUI Features (Active)
 
-### 🚀 Immediate Priority: UI Polish & UX
+### Immediate Priority: UI Polish & UX
 
 - [x] **Prompt History**:
     - Implement Up/Down arrow navigation for previous commands.
@@ -134,7 +134,7 @@ Replace the simple checklist item with the enhanced template:
     - **Updated**: 2026-03-14
     
     #### Relationships
-    - **Parent**: Phase 5: Advanced TUI Features → 🚀 Immediate Priority: UI Polish & UX
+    - **Parent**: Phase 5: Advanced TUI Features → Immediate Priority: UI Polish & UX
     - **Dependencies**: [Prompt History](#)
     
     #### Goal

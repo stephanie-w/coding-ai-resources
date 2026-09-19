@@ -65,7 +65,7 @@ See `templates/EXAMPLE_TASK.md` for a complete example based on Phase 5, "Modal 
 ```markdown
 ## Phase 5: Advanced TUI Features (Active)
 
-### 🚀 Immediate Priority: UI Polish & UX
+### Immediate Priority: UI Polish & UX
 
 #### [ ] Modal Help & Settings
 [Task template applied here...]
