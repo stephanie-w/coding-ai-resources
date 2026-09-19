@@ -13,7 +13,7 @@ The repository follows a two-tier organization model:
 ```text
 coding-ai-resources/
 ├── AGENTS.md                   # Operating notes for this repo (just recipes, conventions)
-├── agents/                     # Selectable persona and system prompt definitions
+├── agents/                     # Selectable interactive personas (main chat session prompts)
 │   ├── base.agent.md           # Default persona: communication, operational rules, baseline engineering
 │   └── teach.agent.md          # Teaching persona for dedicated learning sessions
 ├── flavors/                    # Session-scoped overlays composed at launch (`just pi <flavor>...`)
@@ -125,6 +125,9 @@ Pre-configured subagents available via the [`subagents`](pi-extensions/subagents
 | **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find` | Polyglot code searcher and symbol locator |
 | **`reviewer`** (`reviewer`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, py_inspect` | Critical code review, boundary analysis & regression checks |
 | **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `1` (Fast) | `read, grep, find, bash` | Intelligent Conventional Commit clusterer |
+
+> [!NOTE]
+> **Personas vs. Subagents**: Root [`agents/`](agents/) defines full **interactive personas** (the pair-programming session you talk to). In contrast, [`pi-extensions/subagents/subagents/`](pi-extensions/subagents/subagents/) defines **delegated autonomous subagents** (headless child workers invoked as tools). They ship bundled inside the extension directory so the subagent tool works self-contained out of the box when linked.
 
 ---
 

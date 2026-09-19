@@ -32,11 +32,12 @@ After editing the justfile, run `JUST_UNSTABLE=1 just --fmt`; do not hand-tune t
 
 ## Layout
 
-- `agents/` — personas; `base.agent.md` is installed globally via `just link-persona`
+- `agents/` — interactive main personas (`base.agent.md` linked globally via `just link-persona`, `teach.agent.md`)
 - `flavors/` — session overlays for `just pi` (`rapid`, `full`, `python`, `plan`)
-- `skills/` — reusable procedures (Agent Skills standard)
+- `skills/` — reusable procedural workflows (Agent Skills standard)
 - `instructions/` — harness-agnostic policies for Copilot-style agents (`.instructions.md` + `applyTo`); **not loaded by Pi**
 - `pi-extensions/` — TypeScript extensions for Pi
+  - `subagents/subagents/` — bundled catalog subagent definitions (`py-explore`, `explore`, `reviewer`, `git-commit`)
 - `packages/` — Pi package manifests
 - `templates/` — files copied into target projects
 - `docs/pi-harness.md` — persona/flavor model, prompt sources, scenarios
