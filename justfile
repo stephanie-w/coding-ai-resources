@@ -92,14 +92,29 @@ init-project-tools target:
     fi
 
 # Run cross-project reflection in a dedicated Pi session to evolve this repository
-evolve timespan="30d":
+evolve timespan="30d" model="":
     #!/usr/bin/env bash
     PROMPTS=$(python3 skills/analyze-sessions/scripts/prompts.py --since "{{ timespan }}" --corrections)
     if [ -z "$PROMPTS" ]; then
         echo "No prompt corrections found in the last {{ timespan }}."
         exit 0
     fi
-    pi "I have extracted the following human prompt corrections across all sessions from the last {{ timespan }}. Please group recurring friction points and propose specific diffs to our files in agents/, instructions/, or flavors/:" "$PROMPTS"
+    export GONDOLIN_DISABLED=1
+    MODEL_ARGS=()
+    if [ -n "{{ model }}" ]; then
+        MODEL_ARGS=(--model "{{ model }}")
+    fi
+    PROMPT_MSG="You are in interactive consultation & diagnosis mode to evolve this catalog.
+    I have extracted the following human prompt corrections across sessions from the last {{ timespan }}:
+
+    $PROMPTS
+
+    Instructions:
+    1. Concisely group the recurring friction points.
+    2. Check in with me to triage and discard false positives, one-offs, or already-fixed issues before writing diffs.
+    3. Once aligned on real gaps, propose minimal, additive diffs to agents/base.agent.md, flavors/, or skills/."
+
+    pi "${MODEL_ARGS[@]}" --thinking off "$PROMPT_MSG"
 
 # Test-run Pi with skills loaded directly from this repository
 test-pack pack="core" *args="":
