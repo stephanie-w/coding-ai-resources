@@ -130,10 +130,6 @@ test-pack pack="core" *args="":
        --skill "{{ justfile_directory() }}/skills/html2md" \
        --skill "{{ justfile_directory() }}/skills/idea-refine" {{ args }}
 
-# Start a dedicated teaching session with the teach persona
-teach model="deepseek/deepseek-v4-flash":
-    pi --model "{{ model }}" --thinking off --append-system-prompt "{{ justfile_directory() }}/agents/teach.agent.md"
-
 # One-time: make this repo's base persona Pi's global context file (~/.pi/agent/AGENTS.md)
 link-persona:
     #!/usr/bin/env bash
