@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ReadonlyProvider, RealFSProvider, VM, createHttpHooks } from "@earendil-works/gondolin";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -75,6 +76,8 @@ export const DEFAULT_DAILY_DEV_MOUNTS: MountConfig[] = [
   { hostPath: "~/.npm-global", mode: "ro", description: "Pi source code, docs & global npm packages" },
   // Pi persona, skills, extensions & session logs
   { hostPath: "~/.pi/agent", mode: "ro", description: "Global Pi persona, settings, and skills" },
+  // Standard Agent Skills directory
+  { hostPath: "~/.agents/skills", mode: "ro", description: "Global Agent skills directory" },
   // Git config directory (if present)
   { hostPath: "~/.config/git", mode: "ro", description: "Host git user config directory" },
   // Fast package manager caches
@@ -120,6 +123,15 @@ function toGuestPath(localCwd: string, inputPath: string): string {
   if (!trimmed) return GUEST_WORKSPACE;
   trimmed = expandTilde(trimmed);
   if (path.isAbsolute(trimmed)) {
+    // If the path exists on the host as a symlink pointing elsewhere,
+    // resolve its realpath so Gondolin's RealFSProvider boundary checks target the correct mount provider.
+    try {
+      if (fs.existsSync(trimmed)) {
+        trimmed = fs.realpathSync(trimmed);
+      }
+    } catch {
+      // ignore
+    }
     if (isInsideHostPath(localCwd, trimmed)) return hostPathToGuest(localCwd, trimmed);
     return path.posix.resolve("/", toPosix(trimmed));
   }
@@ -135,32 +147,99 @@ function resolveDevMounts(): {
   const guestEnv: Record<string, string> = {};
   const mountedDescriptions: string[] = [];
 
-  for (const entry of DEFAULT_DAILY_DEV_MOUNTS) {
-    const hostPath = expandTilde(entry.hostPath);
-    if (!fs.existsSync(hostPath)) continue;
+  const mountDirectory = (
+    hostPathRaw: string,
+    guestPathRaw?: string,
+    mode: "ro" | "rw" = "ro",
+    description?: string,
+  ) => {
+    const hostPath = expandTilde(hostPathRaw);
+    if (!fs.existsSync(hostPath)) return;
 
-    // Gondolin VFS RealFSProvider and guest bind mounts only support directories
     try {
       const stat = fs.statSync(hostPath);
-      if (!stat.isDirectory()) continue;
+      if (!stat.isDirectory()) return;
     } catch {
-      continue;
+      return;
     }
+
+    const guestPath = guestPathRaw ? expandTilde(guestPathRaw) : hostPath;
+    if (mounts[guestPath]) return;
 
     const baseProvider = new RealFSProvider(hostPath);
-    const provider = entry.mode === "ro" ? new ReadonlyProvider(baseProvider) : baseProvider;
+    const provider = mode === "ro" ? new ReadonlyProvider(baseProvider) : baseProvider;
 
-    // 1. Mount at host absolute path (e.g. /home/stephanie/.npm-global)
-    const guestPath = entry.guestPath ? expandTilde(entry.guestPath) : hostPath;
     mounts[guestPath] = provider;
 
-    // 2. If it is inside the host home, also map to /root/... for tools running as root in the VM
     if (hostPath.startsWith(os.homedir())) {
       const rootEquiv = path.posix.join("/root", path.posix.relative(os.homedir(), hostPath));
-      mounts[rootEquiv] = provider;
+      if (!mounts[rootEquiv]) {
+        mounts[rootEquiv] = provider;
+      }
     }
 
-    mountedDescriptions.push(`${entry.hostPath} [${entry.mode}]`);
+    mountedDescriptions.push(
+      description ? `${hostPathRaw} [${mode}] (${description})` : `${hostPathRaw} [${mode}]`,
+    );
+  };
+
+  // 1. Mount standard development directories
+  for (const entry of DEFAULT_DAILY_DEV_MOUNTS) {
+    mountDirectory(entry.hostPath, entry.guestPath, entry.mode, entry.description);
+  }
+
+  // 2. Discover and mount realpath targets for any symlinks in ~/.pi/agent (e.g. skills, AGENTS.md, extensions)
+  try {
+    const piDir = path.join(os.homedir(), ".pi/agent");
+    const dirsToScan = [piDir, path.join(piDir, "extensions")];
+    for (const dir of dirsToScan) {
+      if (!fs.existsSync(dir)) continue;
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        try {
+          const lstat = fs.lstatSync(full);
+          if (lstat.isSymbolicLink()) {
+            const real = fs.realpathSync(full);
+            if (!real.startsWith(piDir)) {
+              const stat = fs.statSync(real);
+              if (stat.isDirectory()) {
+                mountDirectory(
+                  real,
+                  real,
+                  "ro",
+                  `Symlink target for ~/.pi/agent/${path.relative(piDir, full)}`,
+                );
+              } else if (stat.isFile()) {
+                const parentDir = path.dirname(real);
+                mountDirectory(
+                  parentDir,
+                  parentDir,
+                  "ro",
+                  `Parent dir of symlink ~/.pi/agent/${path.relative(piDir, full)}`,
+                );
+              }
+            }
+          }
+        } catch {
+          // ignore individual symlink resolution failures
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 3. Dynamically discover and mount skills if running from a cloned catalog repository
+  try {
+    const currentFilePath = fileURLToPath(import.meta.url);
+    const realPath = fs.realpathSync(currentFilePath);
+    const candidateCatalogRoot = path.resolve(path.dirname(realPath), "../..");
+    const candidateSkills = path.join(candidateCatalogRoot, "skills");
+    if (fs.existsSync(candidateSkills)) {
+      mountDirectory(candidateSkills, candidateSkills, "ro", "Catalog skills");
+    }
+  } catch {
+    // ignore
   }
 
   // Forward Git author & committer identity to the guest environment

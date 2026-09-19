@@ -18,6 +18,7 @@ JUST_UNSTABLE=1 just --fmt     # format the justfile (formatter is unstable)
 | :--- | :--- |
 | `just pi [flavor...] [args]` | Launch Pi: base persona + zero or more flavor overlays |
 | `just link-persona` | One-time: link `agents/base.agent.md` to `~/.pi/agent/AGENTS.md` |
+| `just link-skills` | One-time: link `skills/` to `~/.pi/agent/skills` |
 | `just link-extensions [ext]` | Link one or all `pi-extensions/` into `~/.pi/agent/extensions/` |
 | `just install-global [pack]` | Install a Pi package globally (`packages/<pack>`) |
 | `just setup-python <target>` | Scaffold a project with `justfile.agent` + `AGENTS.md` |

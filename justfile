@@ -158,6 +158,34 @@ link-persona:
     ln -s "$SRC" "$DEST"
     echo "✓ Linked $DEST -> $SRC"
 
+# One-time: make this repo's skills directory Pi's global skills directory (~/.pi/agent/skills)
+link-skills:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SRC="{{ justfile_directory() }}/skills"
+    DEST="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/skills"
+
+    if [ ! -d "$SRC" ]; then
+        echo "✗ Missing skills directory: $SRC" >&2
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$DEST")"
+
+    if [ -L "$DEST" ] && [ "$(readlink -f "$DEST")" = "$(readlink -f "$SRC")" ]; then
+        echo "✓ Already linked: $DEST -> $SRC"
+        exit 0
+    fi
+
+    if [ -e "$DEST" ] || [ -L "$DEST" ]; then
+        echo "✗ $DEST already exists and is not this link. Refusing to overwrite." >&2
+        echo "  Move it aside (e.g. mv $DEST $DEST.bak), then re-run 'just link-skills'." >&2
+        exit 1
+    fi
+
+    ln -s "$SRC" "$DEST"
+    echo "✓ Linked $DEST -> $SRC"
+
 # Link one or all pi-extensions to ~/.pi/agent/extensions/ (default: all)
 link-extensions ext="all":
     #!/usr/bin/env bash

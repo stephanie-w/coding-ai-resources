@@ -225,4 +225,5 @@ This launches a dedicated Pi session that groups recurring friction points from 
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |
 | `just pi [flavor...] [args]` | Launch Pi with `agents/base.agent.md` plus zero or more `flavors/<flavor>.md` overlays. |
 | `just link-persona` | One-time: link `agents/base.agent.md` to `~/.pi/agent/AGENTS.md` (global persona). |
+| `just link-skills` | One-time: link `skills/` to `~/.pi/agent/skills` (global skills). |
 | `just link-extensions [ext]` | Link one or all `pi-extensions/` into `~/.pi/agent/extensions/` (default: `all`). |
