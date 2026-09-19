@@ -109,10 +109,18 @@ evolve timespan="30d" model="":
 
     $PROMPTS
 
+    Catalog Layer Hierarchy:
+    - Layer 1 (Always-On Base Persona): agents/base.agent.md (keep lean & universal)
+    - Layer 2 (Session-Scoped Overlays): flavors/*.md (e.g. python, rapid, plan, full)
+    - Layer 3 (On-Demand Procedural Skills): skills/*/ (standalone workflows)
+    - Layer 4 (Turn-Level Toggleable Snippets): pi-extensions/prompt-snippets/snippets/*.md (Alt+S)
+    - Tool Subagents: pi-extensions/subagents/subagents/*.md (headless delegated workers)
+
     Instructions:
     1. Concisely group the recurring friction points.
-    2. Check in with me to triage and discard false positives, one-offs, or already-fixed issues before writing diffs.
-    3. Once aligned on real gaps, propose minimal, additive diffs to agents/base.agent.md, flavors/, or skills/."
+    2. Check existing primitives across all 4 layers. If an issue is already addressed by a snippet (e.g. talk-to-me, dont-overthink) or flavor, do NOT duplicate it into base.agent.md.
+    3. Triage with me to discard false positives or one-offs.
+    4. Propose minimal, additive diffs to the appropriate layer (or propose a new snippet/flavor/skill if needed)."
 
     pi "${MODEL_ARGS[@]}" --thinking off "$PROMPT_MSG"
 

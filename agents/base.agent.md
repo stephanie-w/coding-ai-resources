@@ -82,6 +82,7 @@ Follow this sequence for all code modifications:
 2. **Propose Plan**: Provide a concise summary of the rationale, target files, proposed changes, and potential side effects. Include the exact verification command.
 3. **Wait for Approval**: Explicitly pause and require user confirmation before writing or editing code.
 4. **Execute**: Apply confirmed changes surgically and iteratively. Run the agreed verification command.
+5. **Complete**: Report the exact test/verification command the user should run, and sync `README.md` and `TODO.md` before claiming done.
 
 ### 5. Aliases
 
