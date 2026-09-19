@@ -182,8 +182,8 @@ The harness implements a **two-tier incremental learning architecture** to turn 
                                        │  in ~/.pi/agent/sessions/)
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 2. CENTRAL CATALOG CURATION (Pi-Powered Macro Reflection)                   │
-│    Command: `just reflect [timespan]` (Run from this repository)            │
+│ 2. CENTRAL CATALOG CURATION (Pi-Powered Macro Evolution)                    │
+│    Command: `just evolve [timespan]` (Run from this repository)             │
 │                                                                             │
 │    • Scope: Pi-Native Automation.                                           │
 │    • Extraction: Mines human corrections across all Pi sessions from        │
@@ -195,13 +195,13 @@ The harness implements a **two-tier incremental learning architecture** to turn 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Running Macro Reflection in Pi
+### Running Macro Evolution in Pi
 
 To evolve your central personas, flavors, and catalog skills based on real corrections across all Pi projects over the last month:
 
 ```bash
-# Run 30-day reflection from this repository
-just reflect 30d
+# Run 30-day macro evolution from this repository
+just evolve 30d
 ```
 
 This launches a dedicated Pi session that groups recurring friction points from `~/.pi/agent/sessions/` and proposes additive diffs for your confirmation before committing.
@@ -219,7 +219,7 @@ This launches a dedicated Pi session that groups recurring friction points from 
 | `just remove-global [pack]` | Remove a globally installed package. |
 | `just setup-python <target>` | Initialize Python workspace with `justfile.agent` and `AGENTS.md` in `<target>`. |
 | `just init-project-tools <target>` | Copy `justfile.agent` and `AGENTS.md` into `<target>` (non-destructive). |
-| `just reflect [timespan]` | Run cross-project session reflection in a dedicated Pi session (default: `30d`). |
+| `just evolve [timespan]` | Run cross-project session evolution in a dedicated Pi session (default: `30d`). |
 | `just install-pack <pack> <target>` | Install a package locally into a specific project. |
 | `just remove-pack <pack> <target>` | Remove a package locally from a project. |
 | `just test-pack [pack]` | Run Pi locally with skills loaded from this repository. |

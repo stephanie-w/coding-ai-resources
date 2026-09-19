@@ -92,7 +92,7 @@ init-project-tools target:
     fi
 
 # Run cross-project reflection in a dedicated Pi session to evolve this repository
-reflect timespan="30d":
+evolve timespan="30d":
     #!/usr/bin/env bash
     PROMPTS=$(python3 skills/analyze-sessions/scripts/prompts.py --since "{{ timespan }}" --corrections)
     if [ -z "$PROMPTS" ]; then

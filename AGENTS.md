@@ -22,7 +22,7 @@ JUST_UNSTABLE=1 just --fmt     # format the justfile (formatter is unstable)
 | `just install-global [pack]` | Install a Pi package globally (`packages/<pack>`) |
 | `just setup-python <target>` | Scaffold a project with `justfile.agent` + `AGENTS.md` |
 | `just test-pack [pack]` | Run Pi with this repository's skills loaded |
-| `just reflect [timespan]` | Mine session corrections to evolve the rules |
+| `just evolve [timespan]` | Mine session corrections to evolve the catalog rules |
 | `just validate` | Validate all `package.json` manifests |
 | `just sync-docs` | Fetch official Pi coding-agent documentation from upstream |
 | `just sync-examples` | Fetch official Pi coding-agent examples (extensions/SDK) from upstream |
