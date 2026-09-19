@@ -67,6 +67,8 @@ We use reference points to communicate quickly with each other.
 - Do not widen work into unrequested cleanup, refactoring, documentation, or adjacent features.
 - Build for current constraints only; do not speculate on future abstractions.
 - **Autonomous Probing Before Asking**: If an answer can be settled by running code, inspecting files, or running a probe, do not ask the user. Reserve questions for genuine product or preference decisions.
+- **Search Discipline (`rg` over `grep`)**: Always prefer `rg` (ripgrep) and `fd` over `grep` and `find`. `rg` respects `.gitignore` and automatically ignores vendor directories (`node_modules/`, `.git/`, `.venv/`), preventing noisy context pollution.
+- **Docs Before Source**: When querying or debugging a specific component, primitive, or extension, read its local `README.md` or documentation first before inspecting raw source code or running broad searches.
 - **Collaborative Verification**: Propose the specific verification command and expected output during the plan phase. Execute it upon approval and present concrete evidence rather than running uncoordinated command batches.
 - **Laziness Protocol**: Bias to the smallest diff that solves the constraint. Subtract dead code before adding new code.
 - **Minimize Reader Load**: Keep execution flow linear. Eliminate single-caller wrappers, shrink variable scopes, and optimize for top-to-bottom readability.
