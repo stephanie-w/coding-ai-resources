@@ -52,9 +52,13 @@ coding-ai-resources/
 ├── pi-extensions/              # TypeScript native extensions for Pi Agent
 │   ├── ask-user-question/      # Interactive user prompts & choices in Pi TUI (upstream: pi-config)
 │   ├── bash-guard/             # Intercepts agent bash calls; prompts before destructive commands
+│   ├── btw/                    # Parallel sidecar sub-session modal & thread channel (upstream: pi-btw)
+│   ├── context-inspector/      # Local HTML token visualization & attribution dashboard (upstream: pi-extensions)
 │   ├── context-monitor/        # Live footer token & context percentage badge and /tokens command
+│   ├── file-context/           # Interactive TUI file/code range browser & Git provenance (upstream: pi-extensions)
 │   ├── git-checkpoint/         # Manual, durable working tree snapshots (/checkpoint, /rollback)
 │   ├── gondolin/               # Sandboxes execution inside an isolated Linux micro-VM (/gondolin)
+│   ├── lsp/                    # Unified Language Server Protocol semantic code intelligence
 │   ├── neovim/                 # Live Neovim editor context and buffer awareness
 │   ├── pi-repl/                # Python eval & type introspection against active uv environment
 │   ├── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
@@ -145,6 +149,11 @@ just link-persona
 # Link all Pi extensions globally into ~/.pi/agent/extensions/
 just link-extensions
 ```
+
+> [!NOTE]
+> **Built-in vs. External Extensions**:
+> - **Built-in extensions** (`bash-guard`, `git-checkpoint`, `lsp`, `secrets-guard`, `context-monitor`, etc.) contain local TypeScript source code and become active as soon as they are linked.
+> - **External extensions** (`ask-user-question`, `btw`) are catalog entries documenting upstream packages. `just link-extensions` creates symlinks for their catalog directories, which Pi safely ignores because they lack an `index.ts` entry point. To install and use an external extension, install it directly with `pi install git:github.com/<owner>/<repo>` or clone its source into `pi-extensions/<name>/`.
 
 ---
 

@@ -10,7 +10,10 @@ self-contained and can be installed on its own.
 - **gondolin** : Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`) inside an isolated Gondolin Linux micro-VM.
 - **prompt-snippets** : Toggleable, per-message prompt fragments (`alt+s` / `/snippets`) that are prepended or appended to your message. Skips slash commands so templates and skills still expand.
 - **ask-user-question** : Interactive multiple-choice / text clarification tool (`ask_user_question`) for Pi TUI. (Upstream: `amosblomqvist/pi-config`).
+- **btw** : Sidecar sub-session and parallel conversation channel (`/btw`, `/btw:tangent`, `/btw:inject`, `/btw:summarize`) with dedicated TUI modal overlay and independent tool access. (Upstream: `dbachelder/pi-btw`).
+- **context-inspector** : Local HTML dashboard (`/context`) visually dissecting session token allocation and component attribution. (Upstream: `diegopetrucci/pi-extensions`).
 - **context-monitor** : Token/context budget indicator — footer badge, `/tokens` breakdown (exact totals + estimated composition), cache efficiency, and overflow surfacing.
+- **file-context** : Interactive TUI code browser (`/file-context`, `Ctrl+Shift+X`) for attaching exact lines and Git provenance snapshots. (Upstream: `narumiruna/pi-extensions`).
 - **pi-repl** : Python eval + inspection against the project's uv environment (`py_eval`, `py_inspect`). Stateless `uv run`, self-gates outside uv projects.
 - **subagents** : Declarative subagent factory. Drop a `.md` file with YAML frontmatter into a discovery directory and it becomes a tool (`subagent` meta-tool plus `direct_tool` shortcuts like `py_explore`, `git_commit`). Ships with bundled `py-explore`, `explore`, `reviewer`, `git-commit` agents, plus `/subagents`.
 - **lsp** : Unified Language Server Protocol (LSP) semantic code intelligence. Dual-backend router dispatching to Neovim RPC ($NVIM) or on-demand headless JSON-RPC stdio (`lsp_definition`, `lsp_references`, `lsp_symbols`, `lsp_call_hierarchy`, `lsp_hover`, `lsp_diagnostics`, `/lsp`).
@@ -65,6 +68,9 @@ Link the **whole directory** for directory extensions. This keeps `package.json`
 > (see [Requirements](#requirements)); a directory symlink keeps those
 > `node_modules` in scope. Alternatively, pi resolves `node_modules` from parent
 > directories, so running `npm install` in `pi-extensions/` covers it too.
+
+> **External / Catalog-Only Extensions**:
+> Directories that serve as catalog references to upstream packages (e.g. `ask-user-question`, `btw`) only contain documentation in this repo. When symlinked via `just link-extensions`, Pi safely ignores them because they lack an `index.ts` entry point. To install external extensions, use `pi install git:github.com/<owner>/<repo>` (or clone/vendor the repository source into the extension directory).
 
 To remove a symlinked extension, delete the link (`rm ~/.pi/agent/extensions/<name>*`).
 The source in this repo is untouched.
@@ -126,6 +132,47 @@ Equivalently, add the paths to `~/.pi/agent/settings.json` by hand:
 
 > Local paths are referenced, not copied — do not move or delete this repo after
 > installing. For bash-guard, run `npm install` in its directory first.
+
+## Method 4 — Installing External / Upstream Extensions
+
+External extensions cataloged here without local source files (such as `btw` or `ask-user-question`) can be installed in three ways:
+
+### Option A: Via Git / npm URL (Standard)
+Pi can install extensions directly from remote git repositories or npm packages into `~/.pi/agent/settings.json`:
+
+```bash
+# Global install (all workspaces)
+pi install git:github.com/dbachelder/pi-btw
+
+# Project-local install (-l flag)
+pi install -l git:github.com/dbachelder/pi-btw
+
+# From npm (once published)
+pi install npm:pi-btw
+```
+
+### Option B: Single-file download (for standalone .ts scripts)
+For single-file extensions like `ask-user-question`:
+
+```bash
+curl -fLo ~/.pi/agent/extensions/ask-user-question.ts \
+  https://raw.githubusercontent.com/amosblomqvist/pi-config/main/extensions/ask-user-question.ts
+```
+
+### Option C: Vendor locally in this repository
+If you want to modify or keep the external extension versioned in this workspace:
+
+```bash
+# 1. Clone into the catalog folder
+git clone https://github.com/dbachelder/pi-btw pi-extensions/btw
+
+# 2. Install runtime dependencies
+cd pi-extensions/btw && npm install
+
+# 3. Link or install (just link-extensions also runs npm install automatically)
+just link-extensions btw
+# or: pi install "$PWD/pi-extensions/btw"
+```
 
 ---
 
