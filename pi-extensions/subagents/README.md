@@ -95,8 +95,11 @@ The extension ships with the following pre-configured, high-velocity subagents:
 
 | Agent / Tool | Model | Thinking | Tools Whitelist | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
+| **`scout`** (`scout`) | `deepseek/deepseek-v4-flash` | `1` (Low) | `read, grep, find, py_inspect, bash` | Fast codebase recon & structured handoff briefs |
 | **`py-explore`** (`py_explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, py_inspect, bash` | Fast Python structural investigator |
 | **`explore`** (`explore`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find` | Fast polyglot symbol and code locator |
+| **`oracle`** (`oracle`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, bash` | Second-opinion advisor, assumption challenger & lateral solver |
+| **`worker`** (`worker`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, edit, write, bash` | Surgical implementation writer bounded by the Laziness Protocol |
 | **`reviewer`** (`reviewer`) | `deepseek/deepseek-v4-flash` | `2` (Reasoning) | `read, grep, find, py_inspect` | Critical code review, boundary analysis & regression checks |
 | **`git-commit`** (`git_commit`) | `deepseek/deepseek-v4-flash` | `0` (Off) | `read, grep, find, bash` | Change clustering and Conventional Commits |
 

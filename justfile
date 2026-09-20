@@ -203,6 +203,13 @@ link-extensions ext="all":
             return 1
         fi
         if [ -d "$src" ]; then
+            # Skip directories that are documentation-only stubs (no package.json or TypeScript files)
+            if [ ! -f "$src/package.json" ] && [ ! -f "$src/index.ts" ] && ! compgen -G "$src/*.ts" > /dev/null; then
+                if [ "{{ ext }}" != "all" ]; then
+                    echo "✗ '$name' has no code entry point (index.ts or package.json); skipping." >&2
+                fi
+                return 0
+            fi
             if [ -f "$src/package.json" ] && [ ! -d "$src/node_modules" ]; then
                 echo "Installing dependencies for $name..."
                 (cd "$src" && npm install)

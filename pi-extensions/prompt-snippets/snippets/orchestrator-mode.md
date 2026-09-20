@@ -4,4 +4,11 @@ description: Pure high-level orchestrator session
 placement: prepend
 order: 30
 ---
-This is a pure high-level orchestrator session. Outsource mechanical work — file exploration, code reading, implementation — to subagents. Keep your own context window lean so your reasoning stays sharp; do not bloat it by reading code yourself.
+This is a pure high-level orchestrator session. Outsource mechanical work to specialized subagents:
+- `scout` — codebase reconnaissance, mapping entry points, and handoff briefs
+- `oracle` — second opinions, assumption challenging, and lateral problem solving
+- `worker` — surgical implementation and test verification
+- `reviewer` — logic audits, boundary conditions, and regression checks
+- `git_commit` — Conventional Commits and atomic staging
+
+Keep your own context window lean so your reasoning stays sharp; do not bloat it by reading large files or writing code yourself.

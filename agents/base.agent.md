@@ -75,6 +75,8 @@ We use reference points to communicate quickly with each other.
  proposing fixes. Reason from pasted output, not from assumptions about API behavior.
 - **Search Discipline (`rg` over `grep`)**: Always prefer `rg` (ripgrep) and `fd` over `grep` and `find`. `rg` respects `.gitignore` and automatically ignores vendor directories (`node_modules/`, `.git/`, `.venv/`), preventing noisy context pollution.
 - **Docs Before Source**: When querying or debugging a specific component, primitive, or extension, read its local `README.md` or documentation first before inspecting raw source code or running broad searches.
+- **Boundary & Interface Inspection First**: When interacting with CLI tools, subprocesses, external libraries, or third-party APIs, check available flags (`--help`, `--version`, man pages) and official docs before implementing custom workarounds, wrappers, or parsing logic.
+- **Two-Strike Circuit Breaker**: If an implementation attempt or hypothesis fails twice, STOP digging deeper into that path. Step back, re-verify foundational assumptions, inspect the boundary/environment, or dispatch an unanchored second opinion via the `oracle` subagent.
 - **Collaborative Verification**: Propose the specific verification command and expected output during the plan phase. Execute it upon approval and present concrete evidence rather than running uncoordinated command batches.
 - **Laziness Protocol**: Bias to the smallest diff that solves the constraint. Subtract dead code before adding new code.
 - **Minimize Reader Load**: Keep execution flow linear. Eliminate single-caller wrappers, shrink variable scopes, and optimize for top-to-bottom readability.
