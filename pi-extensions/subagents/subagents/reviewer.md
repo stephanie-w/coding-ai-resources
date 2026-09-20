@@ -2,7 +2,7 @@
 name: reviewer
 description: Critical code review, diff inspection, and regression analysis. Analyzes code changes, pull requests, or functions for logic bugs, boundary conditions, type mismatches, security issues, and regressions.
 model: deepseek/deepseek-v4-flash
-thinking: 2
+thinking: 3
 tools: read, grep, find, py_inspect
 direct_tool: true
 guidelines:
