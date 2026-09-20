@@ -26,12 +26,14 @@
 
 ### Extension: `notify-i3` (Desktop & Window Manager Alerts)
 - **Reference Base**: Upstream [`docs/pi-agent/examples/extensions/notify.ts`](docs/pi-agent/examples/extensions/notify.ts).
-- [ ] Create extension directory `pi-extensions/notify-i3/`
-- [ ] Implement `package.json` with Pi extension manifest
-- [ ] Implement `index.ts` sending `notify-send` on two triggers: `agent_settled` (task finished) and `ui_prompt_start` (blocked on user prompt); subagent notifications dropped (no event, noisy)
-- [ ] Add configurable duration threshold (only notify task-finished for tasks >5s; prompt-wait notifies immediately)
-- [ ] Add `/notify` slash command (toggle, test notification, threshold config, status)
-- [ ] Add `README.md` documentation
+- [x] Create extension directory `pi-extensions/notify-i3/`
+- [x] Implement `package.json` with Pi extension manifest
+- [x] Implement `index.ts` sending `notify-send` (plus OSC 99/777 fallback) with subagent suppression (`PI_SUBAGENT_DEPTH >= 1`)
+- [x] Add configurable duration threshold (task-finished only for tasks >5s)
+- [x] Add `/notify` slash command (status, on/off/toggle, test, threshold) with JSON config persistence
+- [x] Add `README.md` documentation
+- [x] Fix open review findings before shipping (resolved via O2 model + B2/B3/B4/M1 fixes)
+- [x] Link on host: `just link-extensions notify-i3`
 
 ### Extension: `context-monitor` (Token & Context Budget Indicator)
 - [x] Create extension directory `pi-extensions/context-monitor/`
