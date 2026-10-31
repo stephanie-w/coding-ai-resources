@@ -6,7 +6,7 @@ Sandboxes all agent file and shell operations (`read`, `write`, `edit`, `bash`, 
 
 - **Micro-VM Isolation**: Runs commands inside a fast QEMU/KVM micro-VM (Alpine Linux).
 - **Host Workspace Mounting**: Automatically mounts the current directory read-write at `/workspace` inside the guest.
-- **Daily Dev Mounts**: Mounts key host configs (`~/.npm-global`, `~/.pi/agent`, `~/.gitconfig` in read-only mode, and `~/.cache/uv`, `~/.cache/pip`, `~/.npm` in read-write mode) for seamless daily coding.
+- **Daily Dev Mounts**: Mounts key host configs (`~/.npm-global`, `~/.pi/agent`, `~/.gitconfig` in read-only mode, and `~/.cache/uv`, `~/.local/share/uv`, `~/.cache/pip`, `~/.npm` in read-write mode) for seamless daily coding.
 - **TUI Status**: Displays the live status of the micro-VM in Pi's status bar.
 - **Clean Shutdown**: Gracefully stops the micro-VM when the Pi session exits.
 

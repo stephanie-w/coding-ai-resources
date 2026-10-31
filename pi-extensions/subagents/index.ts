@@ -931,7 +931,31 @@ function buildSubagentReport(discovery: ReturnType<typeof discoverAgents>, trust
 	return lines.join("\n");
 }
 
+function isGondolinSandboxActive(): boolean {
+	if (process.env.GONDOLIN_DISABLED === "1" || process.env.NO_SANDBOX === "1") {
+		return false;
+	}
+	if (process.env.GONDOLIN_ACTIVE === "1") {
+		return true;
+	}
+	const linkedGondolin = path.join(getAgentDir(), "extensions", "gondolin");
+	return fs.existsSync(linkedGondolin);
+}
+
 export default function (pi: ExtensionAPI) {
+	if (isGondolinSandboxActive()) {
+		pi.registerCommand("subagents", {
+			description: "List discovered subagents (disabled while Gondolin sandbox is active)",
+			handler: async (_args, ctx) => {
+				ctx.ui.notify(
+					"Subagents are disabled while Gondolin sandbox is active to prevent unsandboxed host execution.",
+					"info",
+				);
+			},
+		});
+		return;
+	}
+
 	const registeredDirectTools = new Set<string>();
 
 	/** Register dedicated tools for agents with `direct_tool: true`. Idempotent. */

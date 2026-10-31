@@ -80,8 +80,9 @@ export const DEFAULT_DAILY_DEV_MOUNTS: MountConfig[] = [
   { hostPath: "~/.agents/skills", mode: "ro", description: "Global Agent skills directory" },
   // Git config directory (if present)
   { hostPath: "~/.config/git", mode: "ro", description: "Host git user config directory" },
-  // Fast package manager caches
+  // Fast package manager caches & toolchains
   { hostPath: "~/.cache/uv", mode: "rw", description: "uv Python package cache" },
+  { hostPath: "~/.local/share/uv", mode: "rw", description: "uv managed Python installations & tools" },
   { hostPath: "~/.cache/pip", mode: "rw", description: "pip cache" },
   { hostPath: "~/.npm", mode: "rw", description: "npm package cache" },
 ];
@@ -262,11 +263,16 @@ function resolveDevMounts(): {
     // Ignore git config parse errors
   }
 
-  // Handle npm-global specific guest environment variables (NODE_PATH and PATH)
+  // Isolate the guest's Alpine (musl) uv project virtualenv from the host's (glibc) /workspace/.venv
+  guestEnv.UV_PROJECT_ENVIRONMENT = "/root/.venv";
+
+  // Handle npm-global and uv virtualenv guest environment variables (NODE_PATH and PATH)
   const hostNpmGlobal = path.join(os.homedir(), ".npm-global");
   if (fs.existsSync(hostNpmGlobal)) {
     guestEnv.NODE_PATH = `/root/.npm-global/lib/node_modules:${hostNpmGlobal}/lib/node_modules`;
-    guestEnv.PATH = `/root/.npm-global/bin:${hostNpmGlobal}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+    guestEnv.PATH = `/root/.venv/bin:/root/.npm-global/bin:${hostNpmGlobal}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+  } else {
+    guestEnv.PATH = `/root/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
   }
 
   // Parse custom mounts from environment: GONDOLIN_MOUNTS="HOST:GUEST[:ro]"
@@ -649,6 +655,9 @@ export default function (pi: ExtensionAPI) {
     return;
   }
 
+  // Signal to other extensions (e.g. subagents) that Gondolin sandbox is active
+  process.env.GONDOLIN_ACTIVE = "1";
+
   const localRead = createReadTool(GUEST_WORKSPACE);
   const localWrite = createWriteTool(GUEST_WORKSPACE);
   const localEdit = createEditTool(GUEST_WORKSPACE);
@@ -679,6 +688,8 @@ export default function (pi: ExtensionAPI) {
           "github.com",
           "raw.githubusercontent.com",
           "api.github.com",
+          "objects.githubusercontent.com",
+          "release-assets.githubusercontent.com",
           "pypi.org",
           "files.pythonhosted.org",
           "registry.npmjs.org",
@@ -844,16 +855,17 @@ export default function (pi: ExtensionAPI) {
 
     const gondolinEnvNotice = `
 ## Gondolin Sandbox Environment
-All tool and shell operations (read, write, edit, bash, ls, grep, find) execute inside an isolated **Gondolin Alpine Linux micro-VM**:
-- **Workspace**: Host working directory \`${localCwd}\` is mounted at \`${GUEST_WORKSPACE}\`. All project paths are relative to \`${GUEST_WORKSPACE}\`.
+All tool and shell operations (read, write, edit, bash, ls, grep, find) execute inside a **closed, isolated Gondolin Alpine Linux micro-VM**:
+- **Strict Workspace Isolation (\`${GUEST_WORKSPACE}\`)**: Only the active project directory (\`${localCwd}\`) is mounted read-write at \`${GUEST_WORKSPACE}\`. You **cannot** access or modify host files outside \`${GUEST_WORKSPACE}\` (except the explicit dev/cache mounts listed below). Always use paths relative to \`${GUEST_WORKSPACE}\`.
 - **User & OS**: Running as \`root\` on Alpine Linux. Pre-installed tools include \`uv\`, \`python3\`, \`nodejs\`, \`npm\`, \`git\`, \`ripgrep\`, \`fd\`, \`just\`, \`curl\`. Package manager is \`apk\`.
+- **Python / uv**: \`UV_PROJECT_ENVIRONMENT=/root/.venv\` is set so the guest's Alpine (\`musl\`) virtualenv lives at \`/root/.venv\` (also on \`PATH\`) and never collides with the host's \`/workspace/.venv\`.
 - **Mounted Directories**: ${mountedList}.
 - **Bootstrapped Dotfiles**: \`~/.gitconfig\`, \`~/.npmrc\`, \`~/.pypirc\` are seeded into \`/root/\`.
 - **Network Boundaries**: Outbound internet is strictly filtered by an HTTP proxy to approved registries: \`github.com\`, \`pypi.org\`, \`registry.npmjs.org\`, \`crates.io\`. Arbitrary external domains are blocked.
-- **Diagnostics**:
-  - Host paths outside mounted directories (e.g. \`/home/...\`) do not exist in the guest. Always use \`${GUEST_WORKSPACE}\` or mounted paths.
-  - If network requests fail with 403 / proxy block, verify if the domain is on the allowed registry list.
-  - Subagents and background tasks share or spawn inside this micro-VM sandbox environment.
+- **Core Environment Escalation Policy**:
+  - You are running in a restricted, closed environment. Subagent delegation tools are disabled so all actions remain strictly inside this micro-VM; perform tasks (\`git\`, search, testing, edits) directly using your built-in tools.
+  - **Do not** waste turns trying to bypass sandbox boundaries, work around missing mounts, circumvent proxy blocks, or fix host-level credential/provider/toolchain issues yourself.
+  - When a task is blocked by a sandbox limitation (e.g., needing an unmounted host path, a blocked network domain, a missing system dependency, or a host provider/API key configuration), **stop immediately, explain what boundary was hit, and ask the user** to update the Gondolin or host configuration.
 `;
 
     let modified = event.systemPrompt.replace(
