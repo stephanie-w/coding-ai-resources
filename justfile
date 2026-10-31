@@ -59,7 +59,7 @@ remove-pack pack target:
 
 # Initialize Python project workspace with justfile.agent and AGENTS.md (non-destructive)
 setup-python target:
-    @just -f {{ justfile() }} init-project-tools "{{ target }}"
+    @just -f {{ justfile() }} init-project-tools "$(cd "{{ invocation_directory() }}" && realpath "{{ target }}")"
     @echo "✓ Python project tooling & AGENTS.md initialized in $(cd "{{ invocation_directory() }}" && realpath "{{ target }}")."
 
 # Copy agent justfile and AGENTS.md templates into a target project workspace (preserves existing files)
@@ -292,4 +292,5 @@ pi *args:
         done
     fi
 
+    cd "{{ invocation_directory() }}"
     exec "${cmd[@]}" "$@"
