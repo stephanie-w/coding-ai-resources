@@ -37,6 +37,15 @@ import {
 const GUEST_WORKSPACE = "/workspace";
 const DEFAULT_GREP_LIMIT = 100;
 
+// Host identity/path variables that must never leak into the guest micro-VM,
+// where the agent runs as root with HOME=/root.
+const GUEST_HOST_IDENTITY_ENV: Record<string, string> = {
+  HOME: "/root",
+  USER: "root",
+  LOGNAME: "root",
+  SHELL: "/bin/bash",
+};
+
 export type MountConfig = {
   /** Host path (supports ~ for home directory) */
   hostPath: string;
@@ -85,6 +94,7 @@ export const DEFAULT_DAILY_DEV_MOUNTS: MountConfig[] = [
   { hostPath: "~/.local/share/uv", mode: "rw", description: "uv managed Python installations & tools" },
   { hostPath: "~/.cache/pip", mode: "rw", description: "pip cache" },
   { hostPath: "~/.npm", mode: "rw", description: "npm package cache" },
+  { hostPath: "~/DEV/acpterm", mode: "ro", description: "acpterm" },
 ];
 
 type TextToolResult<TDetails> = {
@@ -265,6 +275,9 @@ function resolveDevMounts(): {
 
   // Isolate the guest's Alpine (musl) uv project virtualenv from the host's (glibc) /workspace/.venv
   guestEnv.UV_PROJECT_ENVIRONMENT = "/root/.venv";
+
+  // Force guest identity so host HOME/USER/LOGNAME/SHELL never leak into the micro-VM.
+  Object.assign(guestEnv, GUEST_HOST_IDENTITY_ENV);
 
   // Handle npm-global and uv virtualenv guest environment variables (NODE_PATH and PATH)
   const hostNpmGlobal = path.join(os.homedir(), ".npm-global");
@@ -541,13 +554,16 @@ function sanitizeEnv(
   guestEnv?: Record<string, string>,
 ): Record<string, string> {
   const out: Record<string, string> = { ...guestEnv };
-  if (!env) return out;
-  for (const [k, v] of Object.entries(env)) {
-    if (typeof v === "string" && !SENSITIVE_PATTERN.test(k)) {
-      out[k] = v;
+  if (env) {
+    for (const [k, v] of Object.entries(env)) {
+      if (typeof v === "string" && !SENSITIVE_PATTERN.test(k)) {
+        out[k] = v;
+      }
     }
   }
   delete out.DEEPSEEK_API_KEY;
+  // Force guest identity over any host values that slipped through.
+  Object.assign(out, GUEST_HOST_IDENTITY_ENV);
   return out;
 }
 
