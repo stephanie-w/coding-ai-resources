@@ -113,7 +113,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "-o",
         "--output",
-        help="Output Markdown file path (default: <hostname>.md in the current directory)",
+        help="Output Markdown file path, or '-' for stdout (default: <hostname>.md in current directory)",
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print converted Markdown to stdout instead of writing a file",
     )
     parser.add_argument(
         "--timeout",
@@ -132,7 +137,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         url = args.url if urllib.parse.urlparse(args.url).scheme else f"https://{args.url}"
         hostname = urllib.parse.urlparse(url).netloc or "output"
-        output_path = Path(args.output) if args.output else Path(f"{hostname}.md")
 
         if args.verbose:
             print(f"[html2md] fetching {url}", file=sys.stderr)
@@ -145,6 +149,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         markdown = convert(html)
 
+        if args.stdout or args.output == "-":
+            sys.stdout.write(markdown)
+            return 0
+
+        output_path = Path(args.output) if args.output else Path(f"{hostname}.md")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown, encoding="utf-8")
 
