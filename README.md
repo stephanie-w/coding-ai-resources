@@ -13,9 +13,14 @@ The repository follows a two-tier organization model:
 ```text
 coding-ai-resources/
 ├── AGENTS.md                   # Operating notes for this repo (just recipes, conventions)
-├── agents/                     # Selectable interactive personas (main chat session prompts)
+├── agents/                     # Selectable interactive & stage personas (main chat & factory roles)
 │   ├── base.agent.md           # Default persona: communication, operational rules, baseline engineering
-│   └── teach.agent.md          # Teaching persona for dedicated learning sessions
+│   ├── teach.agent.md          # Teaching persona for dedicated learning sessions
+│   ├── triage.agent.md         # Engineering triage lead persona (scope, duplicate & <400-line PR check)
+│   ├── architect.agent.md      # Staff architect persona (root-cause minimalism, AC-n & cost-to-undo filter)
+│   ├── implementer.agent.md    # TDD builder persona (AC-first tests, boundary probing, scope discipline)
+│   ├── reviewer.agent.md       # Skeptical code reviewer persona (adversarial diff & test verification)
+│   └── security.agent.md       # Offensive security auditor persona (source-to-sink & exploit proof)
 ├── flavors/                    # Session-scoped overlays composed at launch (`just pi <flavor>...`)
 │   ├── plan.md                 # Read-only planning posture
 │   ├── rapid.md                # High-velocity MVP/prototype posture
@@ -31,15 +36,20 @@ coding-ai-resources/
 │   └── skills-backlog.md       # Evaluated candidate skills backlog
 ├── skills/                     # Reusable procedural skills (Agent Skills standard)
 │   ├── analyze-sessions/       # Tools for querying sessions, costs, and reflection
+│   ├── code-reviewer/          # Skeptical diff review, AC-n verification, and risk/severity grading
 │   ├── deep-engineering/       # Architectural design, domain modeling, and root-cause debugging
 │   ├── discover-standards/     # User-guided extraction of codebase patterns into local rules
 │   ├── how/                    # Read-only architectural walkthroughs and runtime mental models
 │   ├── html2md/                # HTML to Markdown conversion tool
 │   ├── idea-refine/            # Structured divergent/convergent ideation framework
+│   ├── issue-triage/           # Ticket grounding, duplicate detection, and <400-line PR sizing
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
 │   ├── reflect/                # Extracts learnings from session corrections to evolve agent rules
+│   ├── security-auditor/       # Source-to-sink untrusted input tracing and exploit-proven auditing
 │   ├── session-handoff/        # Point-in-time state checkpointing and session resume
+│   ├── spec-writer/            # Falsifiable AC-n specifications and cost-to-undo ambiguity filter
 │   ├── task-management/        # Structured TODO.md task/epic templates and lifecycle
+│   ├── tdd-builder/            # AC-first TDD implementation, bad-input probing, and 7-point quality rubric
 │   ├── technical-writing/      # Disciplined technical documentation, RFCs, and PR specs
 │   ├── unslop/                 # Removes AI writing tells and enforces compact human prose
 │   └── why/                    # Forensic investigation into code intent via Git history & ADRs
@@ -64,9 +74,11 @@ coding-ai-resources/
 │   ├── prompt-snippets/        # Toggleable prompt fragments (alt+s, /snippets)
 │   ├── secrets-guard/          # Intercepts sensitive reads, env dumps, and enforces workspace jailing
 │   └── subagents/              # Declarative subagent factory (py_explore, explore, git_commit, /subagents)
-├── prompts/                    # Ephemeral task templates and slash commands
+├── prompts/                    # Stage task prompts and slash commands (triage, spec, build, review, security, orchestrate)
 ├── packages/                   # Composable bundles referencing root primitives
-│   └── core/                   # Baseline pack (all general agent skills)
+│   ├── core/                   # Baseline pack (all general agent skills)
+│   │   └── package.json
+│   └── software-factory/       # Multi-stage software factory pack (agents, prompts, skills)
 │       └── package.json
 └── justfile                    # Operational automation recipes
 ```

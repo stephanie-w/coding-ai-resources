@@ -1,0 +1,39 @@
+{
+  "name": "software-factory-pack",
+  "version": "0.1.0",
+  "description": "Multi-stage software factory personas, prompts, and skills (triage, spec, TDD build, skeptical review, security audit)",
+  "pi": {
+    "skills": [
+      "../../skills/issue-triage",
+      "../../skills/spec-writer",
+      "../../skills/tdd-builder",
+      "../../skills/code-reviewer",
+      "../../skills/security-auditor",
+      "../../skills/html2md"
+    ]
+  },
+  "factory": {
+    "agents": [
+      "../../agents/triage.agent.md",
+      "../../agents/architect.agent.md",
+      "../../agents/implementer.agent.md",
+      "../../agents/reviewer.agent.md",
+      "../../agents/security.agent.md"
+    ],
+    "prompts": [
+      "../../prompts/triage.md",
+      "../../prompts/spec.md",
+      "../../prompts/build.md",
+      "../../prompts/review.md",
+      "../../prompts/security.md"
+    ],
+    "skills": [
+      "../../skills/issue-triage",
+      "../../skills/spec-writer",
+      "../../skills/tdd-builder",
+      "../../skills/code-reviewer",
+      "../../skills/security-auditor",
+      "../../skills/html2md"
+    ]
+  }
+}
