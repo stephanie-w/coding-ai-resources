@@ -45,6 +45,7 @@ coding-ai-resources/
 │   ├── issue-triage/           # Ticket grounding, duplicate detection, and <400-line PR sizing
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
 │   ├── reflect/                # Extracts learnings from session corrections to evolve agent rules
+│   ├── retro/                  # Engineering retrospective on sessions/runs (checks, reviewer rubric, navigation)
 │   ├── security-auditor/       # Source-to-sink untrusted input tracing and exploit-proven auditing
 │   ├── session-handoff/        # Point-in-time state checkpointing and session resume
 │   ├── spec-writer/            # Falsifiable AC-n specifications and cost-to-undo ambiguity filter

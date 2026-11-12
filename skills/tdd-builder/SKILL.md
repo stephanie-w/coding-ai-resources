@@ -9,7 +9,7 @@ Use this skill during the `build` stage to turn an approved specification into c
 
 ## Resources in This Skill Package
 - **Template**: `templates/implementation-notes.md` — concise implementation summary skeleton.
-- **Validation Script**: `scripts/check_build_scope.py` — deterministic check scanning `git diff` for leaked local host paths (`/home/...`, `/Users/...`).
+- **Validation Script**: `scripts/check_build_scope.py [ref_or_range] [--cwd PATH]` — deterministic check scanning `git diff` for leaked local host paths (`/home/...`, `/Users/...`).
 
 ## 1. Execution Workflow
 
@@ -27,7 +27,7 @@ Use this skill during the `build` stage to turn an approved specification into c
      - Empty values, whitespace-only strings, missing fields, out-of-range numbers, `NaN`/`Inf`/`null` values, malformed paths, or duplicate entries.
    - Every bad input must be understood or rejected clearly with an explicit error—never silently coerced into wrong data.
 5. **Self-Review & Local Commit**:
-   - Inspect `git diff` against every `AC-n` row and the 7-point quality standard below, and run `scripts/check_build_scope.py` if needed.
+   - Inspect `git diff` against every `AC-n` row and the 7-point quality standard below, and run `scripts/check_build_scope.py [base_ref | commit_range]` if needed (e.g. `python3 scripts/check_build_scope.py <sha>^..HEAD` or `python3 scripts/check_build_scope.py main`).
    - Remove temporary debug code, scratch files, or comments that only make sense with the ticket in mind.
    - Commit locally on the issue branch with a clear commit message. Never push or merge directly.
 

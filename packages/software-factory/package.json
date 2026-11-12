@@ -9,6 +9,7 @@
       "../../skills/tdd-builder",
       "../../skills/code-reviewer",
       "../../skills/security-auditor",
+      "../../skills/retro",
       "../../skills/html2md"
     ]
   },
@@ -33,6 +34,7 @@
       "../../skills/tdd-builder",
       "../../skills/code-reviewer",
       "../../skills/security-auditor",
+      "../../skills/retro",
       "../../skills/html2md"
     ]
   }

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sys
@@ -133,32 +134,65 @@ def validate_spec_text(raw_text: str) -> tuple[list[str], str]:
     return errors, normalized
 
 
-def main() -> int:
-    target = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1 and sys.argv[1]
-        else Path(os.environ.get("FACTORY_RESPONSE_FILE", ""))
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="validate_spec.py",
+        description="Deterministic output validator for the spec-writer skill.",
     )
-    if not target or not target.is_file():
-        sys.stderr.write(
-            "Usage: validate_spec.py <response_file> (or set FACTORY_RESPONSE_FILE)\n"
-        )
-        return 2
+    parser.add_argument(
+        "response_file",
+        nargs="?",
+        default=None,
+        help="Path to specification response markdown file (default: $FACTORY_RESPONSE_FILE).",
+    )
 
-    raw_text = target.read_text(encoding="utf-8")
-    errors, normalized = validate_spec_text(raw_text)
-    if errors:
-        sys.stderr.write("Specification validation failed:\n")
-        for err in errors:
-            sys.stderr.write(f"  - {err}\n")
-        sys.stderr.write(
-            "\nRe-emit the complete specification strictly following skills/spec-writer/templates/spec.md.\n"
-        )
+    try:
+        args = parser.parse_args(argv)
+        raw_path = args.response_file or os.environ.get("FACTORY_RESPONSE_FILE", "")
+        if not raw_path:
+            sys.stderr.write(
+                "Error: No response file specified. Provide a file path or set FACTORY_RESPONSE_FILE.\n"
+            )
+            return 2
+
+        target = Path(raw_path).resolve()
+        if not target.is_file():
+            sys.stderr.write(f"Error: Response file not found: {target}\n")
+            return 2
+
+        try:
+            raw_text = target.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            sys.stderr.write(f"Error reading response file '{target}': {exc}\n")
+            return 2
+
+        try:
+            errors, normalized = validate_spec_text(raw_text)
+        except Exception as exc:
+            sys.stderr.write(f"Error validating specification report: {exc}\n")
+            return 1
+
+        if errors:
+            sys.stderr.write("Specification validation failed:\n")
+            for err in errors:
+                sys.stderr.write(f"  - {err}\n")
+            sys.stderr.write(
+                "\nRe-emit the complete specification strictly following skills/spec-writer/templates/spec.md.\n"
+            )
+            return 1
+
+        try:
+            target.write_text(normalized, encoding="utf-8")
+        except OSError as exc:
+            sys.stderr.write(f"Error writing normalized report to '{target}': {exc}\n")
+            return 2
+
+        print("Specification validation passed.")
+        return 0
+
+    except Exception as exc:
+        sys.stderr.write(f"validate_spec.py error: {exc}\n")
         return 1
-
-    target.write_text(normalized, encoding="utf-8")
-    print("Specification validation passed.")
-    return 0
 
 
 if __name__ == "__main__":
