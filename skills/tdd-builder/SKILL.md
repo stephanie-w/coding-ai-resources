@@ -15,7 +15,7 @@ Use this skill during the `build` stage to turn an approved specification into c
 
 1. **Read First**:
    - Read the repository's `AGENTS.md` / `CLAUDE.md`, the approved specification in the issue context (especially `## Behavior`, `## Files to Touch`, `## Decisions`, and the `AC-n` table), and the surrounding code and tests.
-   - If running a revision round after review, read every `[blocking]` and `[major]` finding (`path:line`) and fix the root cause plus obvious variants of the same case.
+   - If `## Latest PR Review Findings`, `## PR Review Feedback`, or `## Human Review Comments` are present (whether from a revision round or a passed review with minor findings), fixing every actionable finding (`[blocking]`, `[major]`, and `[minor]`) at its root cause plus obvious variants is part of your job.
 2. **Checks & Tests First (`AC-n` Driven)**:
    - Turn each `AC-n` row from `## Acceptance Criteria` into an executable test (or local validation check for declarative/IaC files) and watch it fail before or alongside your implementation.
    - For bug fixes, write a test that reproduces the exact bug first.
