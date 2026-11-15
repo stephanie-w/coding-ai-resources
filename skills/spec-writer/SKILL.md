@@ -31,6 +31,7 @@ Evaluate every architectural decision through the **Door** and **Blast Radius** 
   - Escalate in `## Open Questions` (`STATUS: NEEDS_HUMAN`).
   - Must include:
     - Adding or modifying project dependencies (`pyproject.toml`, `package.json`, `Cargo.toml`, lockfiles, container base images, Terraform providers) not explicitly requested in the issue.
+    - Bumping a core/shared dependency across a major version or introducing a breaking public change without deciding whether to bump the package's own `version` (and release tag/changelog) for downstream consumers.
     - Choosing missing project-wide test, build, or validation tooling.
     - Breaking public API/CLI/event/model payload contracts.
     - Cloud/MLOps cost, compute, or security decisions (GPU/instance types, scaling bounds, IAM permissions, network exposure, data retention/deletion policies).

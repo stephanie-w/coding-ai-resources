@@ -6,6 +6,7 @@
 ## Design & Risk
 - **Door:** <Two-way (reversible code-local choice) | One-way (costly to undo: public API, storage, dependency)>
 - **Blast Radius:** <Isolated | Subsystem | Public Surface>
+- **Compatibility / Version Bump:** <None (internal) | Breaking / major dependency bump — note downstream impact & whether to bump package `version`>
 
 ### Visual Sketch
 <Pick the SMALLEST visual that makes the change clear. Avoid bloated diagrams. Prefer:>
