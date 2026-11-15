@@ -19,6 +19,9 @@ Use this skill during the `build` stage to turn an approved specification into c
 2. **Checks & Tests First (`AC-n` Driven)**:
    - Turn each `AC-n` row from `## Acceptance Criteria` into an executable test (or local validation check for declarative/IaC files) and watch it fail before or alongside your implementation.
    - For bug fixes, write a test that reproduces the exact bug first.
+   - **Feedback Cadence (Tight Inner Loop vs. Outer Loop)**:
+   - *Tight Inner Loop*: Run typechecking and only the single focused test file for the current seam (e.g. `uv run pytest tests/test_focused.py`). Do not rerun the whole project test suite on minor line edits.
+   - *Outer Loop*: Run the complete project verification suite (`just fix`, `just typecheck`, `just test-fast`) once before self-review and commit.
 3. **Minimal Root-Cause Implementation**:
    - Implement the smallest change at the root cause that satisfies the specification.
    - Stay strictly within `## Files to Touch`; do not perform drive-by refactors or reformat unrelated files.
@@ -29,6 +32,7 @@ Use this skill during the `build` stage to turn an approved specification into c
 5. **Self-Review & Local Commit**:
    - Inspect `git diff` against every `AC-n` row and the 7-point quality standard below, and run `scripts/check_build_scope.py [base_ref | commit_range]` if needed (e.g. `python3 scripts/check_build_scope.py <sha>^..HEAD` or `python3 scripts/check_build_scope.py main`).
    - Remove temporary debug code, scratch files, or comments that only make sense with the ticket in mind.
+   - Summarize implementation notes following `templates/implementation-notes.md`, including concrete before/after evidence (failing reproduction &rarr; passing test suite) and Door / Blast Radius confirmation.
    - Commit locally on the issue branch with a clear commit message. Never push or merge directly.
 
 ## 2. The 7-Point Quality Standard
@@ -40,5 +44,10 @@ The repository's own `AGENTS.md` comes first. The reviewer will hold your work t
 3. **Correctness**: Handle real failure modes explicitly. Never swallow exceptions silently. Preserve public contracts unless the spec changes them (and update all callers).
 4. **Clarity**: Prefer small functions, descriptive names, and straightforward control flow over clever abstractions.
 5. **Comments**: Explain *why*, never *what*. Comments must read naturally to an engineer who never saw the ticket.
-6. **Verification & Tests**: Test behavior through public interfaces rather than internal implementation details. Never weaken, skip, or mock away the core logic under test just to get green checks.
+6. **Verification & Tests**:
+   - **Vertical Slices**: Work one `AC-n` seam at a time (failing test &rarr; minimal implementation &rarr; next seam) rather than writing bulk tests upfront against imagined code.
+   - **Keep Tests Concise & Parametrized**: Prefer one cohesive test per `AC-n` or behavior, and use `@pytest.mark.parametrize` (or table-driven cases) for edge-case and bad-input variants instead of duplicating setup-heavy test functions. Keep any test helpers local to the test file.
+   - **No Tautological Assertions**: Assertions must verify against independent, known-good literals or spec fixtures, never by recomputing expected values using the same formula as the implementation.
+   - **Mock at System Boundaries Only**: Mock external network APIs, clocks/time, or random sources. Never mock internal collaborators, helpers, or your own package classes.
+   - Test behavior through public interfaces rather than private internals. Never weaken, skip, or mock away core logic just to get green checks.
 7. **Security**: No hardcoded secrets, tokens, or local host paths (`/home/...`, `/Users/...`). Parameterize queries and shell invocations; validate paths and external inputs.

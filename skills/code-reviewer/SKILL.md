@@ -11,21 +11,34 @@ Use this skill during the `review` stage (or review checks) to verify a branch a
 - **Template**: `templates/review-report.md` — canonical Markdown review report skeleton.
 - **Validation Script**: `scripts/validate_review.py` — deterministic validator verifying `### Risk Classification`, `### Findings`, severity/status consistency, and privacy rules.
 
-## 1. Review Procedure
+## 1. Two-Axis Review Procedure
 
-1. **Read Context & Guidance**:
+Evaluate the diff along two separate axes so code style doesn't mask broken requirements, and working code doesn't excuse bad architecture:
+
+### Axis 1: Spec Fidelity & AC Coverage
+1. **Inspect Full Context**:
    - Read `AGENTS.md` / `CLAUDE.md`, the approved specification (`## Behavior`, `## Files to Touch`, `## Decisions`, `## Acceptance Criteria`), and any prior review findings.
-2. **Inspect the Full Diff**:
-   - Run `git status --short`, `git log --oneline -n 5`, and `git diff main...HEAD` (or the base branch) and read changed files in full context.
-   - Treat commit messages and summaries as claims to verify against the diff, never as proof.
-3. **Verify Every `AC-n`, Test Effectiveness & User Testability**:
-   - Confirm every `AC-n` row in `## Acceptance Criteria` is satisfied by the code and verified by a test or deterministic check.
-   - Inspect new tests critically: would each test actually fail if the production change were reverted, or does it only test mocks/tautologies? A test that still passes when the fix is broken is at least `major`.
-   - If the change introduces or modifies user-facing CLI commands, flags, or configuration sections, verify that a working `## How to Test` section with a minimal working configuration example exists in the specification and relevant docs are updated; otherwise flag as `[major]`.
-4. **Check Bad Input & Edge Cases**:
-   - Trace how changed code handles empty, malformed, boundary, or unexpected inputs. Anything that silently corrupts or saves wrong data is `blocking`.
-5. **Check Scope & Repo Standards**:
-   - Flag unapproved files outside `## Files to Touch`, unapproved dependency changes, swallowed exceptions, dead code, stale docs, or leaked local paths (`/home/...`).
+   - Run `git status --short`, `git log --oneline -n 5`, and `git diff main...HEAD` (or base branch).
+2. **Verify Every `AC-n` & Test Effectiveness**:
+   - Confirm every `AC-n` row in `## Acceptance Criteria` is satisfied by the code and verified by an executable test or deterministic check.
+   - Inspect new tests critically: would each test actually fail if the production change were reverted? Flag tautological tests or mock-only tests as at least `[major]`.
+   - If user-facing CLI/config changed, verify documentation and `## How to Test` instructions are present and working; otherwise flag `[major]`.
+3. **Check Scope & Bad-Input Probing**:
+   - Detect unrequested behavior or scope creep (flag as `[major]`).
+   - Verify bad, empty, boundary, and malformed inputs are explicitly rejected with errors rather than silently corrupted.
+
+### Axis 2: Software Craftsmanship & Code Smell Baseline
+Verify that the code adheres to repository standards (`AGENTS.md`) and does not introduce maintenance hazards. Use this **Code Smell Baseline**:
+
+- **Speculative Generality** (`[major]`): Adding flags, configuration hooks, generic wrappers, or helpers for hypothetical future needs not asked for in the spec. &rarr; *Delete or inline back.*
+- **Duplicated Code** (`[major]`): Copy-pasting logic or re-implementing an algorithm across multiple hunks rather than reusing an existing helper. &rarr; *Extract shared helper.*
+- **Shotgun Surgery** (`[major]`): A single logical change that forces scattered, shallow modifications across many unrelated files. &rarr; *Consolidate responsibilities into a cohesive module.*
+- **Primitive Obsession** (`[major]`): Passing raw unstructured strings, dicts, or tuples around where a typed model, dataclass, or domain value object belongs.
+- **Data Clumps** (`[major]`): The same group of 3+ parameters traveling together across multiple function calls. &rarr; *Bundle into a parameter type.*
+- **Feature Envy** (`[major]`): A function that reaches into another module/object's internal fields more than its own. &rarr; *Move the logic onto the owning object.*
+- **Mysterious Name** (`[minor]`, or `[major]` if public contract): Names that obscure what a function, variable, or type does.
+
+> *Note: Organizational compliance, regulatory checks, and licensing policies are audited separately by domain policy checkers (e.g. `policy-auditor`). Keep this review strictly focused on technical correctness, specification fidelity, and software craftsmanship.*
 
 ## 2. Severity Rubric
 

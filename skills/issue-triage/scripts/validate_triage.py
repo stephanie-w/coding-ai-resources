@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         "response_file",
         nargs="?",
         default=None,
-        help="Path to triage response markdown file (default: $FACTORY_RESPONSE_FILE).",
+        help="Path to triage response markdown file or '-' for stdin (default: $FACTORY_RESPONSE_FILE).",
     )
 
     try:
@@ -122,16 +122,24 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
 
-        target = Path(raw_path).resolve()
-        if not target.is_file():
-            sys.stderr.write(f"Error: Response file not found: {target}\n")
-            return 2
+        target: Path | None = None
+        if raw_path == "-":
+            try:
+                raw_text = sys.stdin.read()
+            except OSError as exc:
+                sys.stderr.write(f"Error reading from stdin: {exc}\n")
+                return 2
+        else:
+            target = Path(raw_path).resolve()
+            if not target.is_file():
+                sys.stderr.write(f"Error: Response file not found: {target}\n")
+                return 2
 
-        try:
-            raw_text = target.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            sys.stderr.write(f"Error reading response file '{target}': {exc}\n")
-            return 2
+            try:
+                raw_text = target.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                sys.stderr.write(f"Error reading response file '{target}': {exc}\n")
+                return 2
 
         try:
             errors, normalized = validate_triage_text(raw_text)
@@ -148,11 +156,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        try:
-            target.write_text(normalized, encoding="utf-8")
-        except OSError as exc:
-            sys.stderr.write(f"Error writing normalized report to '{target}': {exc}\n")
-            return 2
+        if target is not None:
+            try:
+                target.write_text(normalized, encoding="utf-8")
+            except OSError as exc:
+                sys.stderr.write(f"Error writing normalized report to '{target}': {exc}\n")
+                return 2
 
         print("Triage report validation passed.")
         return 0

@@ -3,11 +3,20 @@
 ## Problem
 <Who is affected, what goes wrong or is missing today, and why it matters in 2–4 sentences.>
 
-## Behavior
-1. <Numbered, testable behaviors covering success, invalid/borderline input, and failure handling.>
+## Design & Risk
+- **Door:** <Two-way (reversible code-local choice) | One-way (costly to undo: public API, storage, dependency)>
+- **Blast Radius:** <Isolated | Subsystem | Public Surface>
 
-## Design
-<Include ONLY when the change spans multiple modules or services: a concise Mermaid diagram of the flow and the module/interface/schema boundaries.>
+### Visual Sketch
+<Pick the SMALLEST visual that makes the change clear. Avoid bloated diagrams. Prefer:>
+- Call tree diff (runtime flow changes)
+- Logic / state pseudocode diff (behavioral changes)
+- Interface / signature diff (signature or type changes)
+- Shallow directory diff (restructuring or new files)
+(Use Mermaid ONLY if illustrating multi-process/service choreography.)
+
+## Behavior
+1. <Numbered, concise, testable behaviors covering success, invalid/borderline input, and failure handling.>
 
 ## Files to Touch
 - `path/to/file.ext` — <concise summary of changes (mark `(new)` if creating a new file)>
@@ -16,7 +25,7 @@
 - <Each settled decision, who made it (human comment, parent issue), and why — or `- None yet.`>
 
 ## Assumptions
-- <Reversible, code-local choices made without blocking on human input — or `- None.`>
+- <Two-way door choices made without blocking on human input — or `- None.`>
 
 ## Acceptance Criteria
 | ID | Done when | How to check |
