@@ -42,6 +42,7 @@ coding-ai-resources/
 │   ├── how/                    # Read-only architectural walkthroughs and runtime mental models
 │   ├── html2md/                # HTML to Markdown conversion tool
 │   ├── idea-refine/            # Structured divergent/convergent ideation framework
+│   ├── improve-codebase-architecture/  # Scan Python/backend/ML codebases for deepening opportunities & HTML report
 │   ├── issue-triage/           # Ticket grounding, duplicate detection, and <400-line PR sizing
 │   ├── make-skill/             # Meta-skill for scaffolding new standardized skills
 │   ├── reflect/                # Extracts learnings from session corrections to evolve agent rules
