@@ -193,7 +193,9 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 target.write_text(normalized, encoding="utf-8")
             except OSError as exc:
-                sys.stderr.write(f"Error writing normalized report to '{target}': {exc}\n")
+                sys.stderr.write(
+                    f"Error writing normalized report to '{target}': {exc}\n"
+                )
                 return 2
 
         print("Specification validation passed.")

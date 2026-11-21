@@ -32,7 +32,9 @@ def _is_exempt_file(path_str: str) -> bool:
     return False
 
 
-def check_diff_for_host_paths(cwd: Path, base_ref: str | None = None) -> tuple[list[str], str | None]:
+def check_diff_for_host_paths(
+    cwd: Path, base_ref: str | None = None
+) -> tuple[list[str], str | None]:
     """Scan added lines in git diff against base_ref (or auto-detected base) for leaked local host paths."""
     errors: list[str] = []
 
@@ -46,7 +48,9 @@ def check_diff_for_host_paths(cwd: Path, base_ref: str | None = None) -> tuple[l
             check=False,
         )
         if proc.returncode != 0:
-            err_msg = proc.stderr.strip() or f"git diff failed with code {proc.returncode}"
+            err_msg = (
+                proc.stderr.strip() or f"git diff failed with code {proc.returncode}"
+            )
             return errors, f"Failed to diff against '{base_ref}': {err_msg}"
     else:
         # Auto-detect diff base: try origin/main -> main -> HEAD -> unstaged
